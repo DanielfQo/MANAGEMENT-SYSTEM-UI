@@ -4,6 +4,8 @@ import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_page.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 
+import 'package:management_system_ui/features/lote/lote_page.dart';
+
 // Importa tu InventoryPage cuando la crees
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -19,9 +21,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/inventory',
-        builder: (context, state) => const Scaffold(body: Center(child: Text("Inventario"))),
+        builder: (context, state) => const LotePage(),
       ),
-      
 
     ],
     
