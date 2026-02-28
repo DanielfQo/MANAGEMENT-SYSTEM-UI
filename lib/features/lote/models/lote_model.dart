@@ -24,6 +24,26 @@ class LoteModel {
   }
 }
 
+class ProductModel {
+  final int id;
+  final String nombre;
+  final bool isActive;
+
+  ProductModel({
+    required this.id,
+    required this.nombre,
+    required this.isActive,
+  });
+
+  factory ProductModel.fromJson(Map<String, dynamic> json) {
+    return ProductModel(
+      id: json['id'],
+      nombre: json['nombre'],
+      isActive: json['is_active'],
+    );
+  }
+}
+
 class LoteProducto {
   final int? productoId; // Para producto existente
   final String? nombre;  // Para producto nuevo

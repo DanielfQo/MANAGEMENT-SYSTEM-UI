@@ -1,25 +1,38 @@
 import 'package:management_system_ui/core/common_libs.dart';
+import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'models/lote_model.dart';
+import 'lote_repository.dart';
 
 final loteProvider =
     NotifierProvider<LoteNotifier, LoteModel?>(LoteNotifier.new);
+  
+final productosProvider = FutureProvider<List<ProductModel>>((ref) async {
+  final repository = ref.watch(loteRepositoryProvider);
+  return repository.getProductos();
+});
 
 class LoteNotifier extends Notifier<LoteModel?> {
 
+  late final LoteRepository _repository;
+
   @override
   LoteModel? build() {
-    return null; // inicialmente no hay lote creado
+    _repository = ref.watch(loteRepositoryProvider);
+    return null;
   }
 
-  /// Crear lote base (sin productos)
   void initLote({
-    required int tienda,
     required String fechaLlegada,
     required String costoOperacion,
     required String costoTransporte,
   }) {
+    final tiendaId =
+        ref.read(authProvider).selectedTiendaId;
+
+    if (tiendaId == null) return;
+
     state = LoteModel(
-      tienda: tienda,
+      tienda: tiendaId,
       fechaLlegada: fechaLlegada,
       costoOperacion: costoOperacion,
       costoTransporte: costoTransporte,
@@ -27,7 +40,6 @@ class LoteNotifier extends Notifier<LoteModel?> {
     );
   }
 
-  /// Agregar producto
   void addProducto(LoteProducto producto) {
     if (state == null) return;
 
@@ -40,7 +52,6 @@ class LoteNotifier extends Notifier<LoteModel?> {
     );
   }
 
-  /// Eliminar producto
   void removeProducto(LoteProducto producto) {
     if (state == null) return;
 
@@ -53,8 +64,14 @@ class LoteNotifier extends Notifier<LoteModel?> {
     );
   }
 
-  /// Limpiar todo
-  void clear() {
+  Future<void> guardarLote() async {
+    if (state == null) return;
+
+    await _repository.crearLote(state!);
     state = null;
+  }
+
+  Future<List<ProductModel>> cargarProductos() async {
+    return await _repository.getProductos();
   }
 }
