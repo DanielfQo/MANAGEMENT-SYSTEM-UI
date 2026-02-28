@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'models/lote_model.dart';
 import 'lote_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class LotePage extends ConsumerStatefulWidget {
   const LotePage({super.key});
