@@ -21,6 +21,14 @@ class _VentaPageState extends ConsumerState<VentaPage> {
   int? productoSeleccionadoId;
   double? precioVentaBase;
 
+  bool usarClienteExistente = true;
+
+  int? clienteSeleccionadoId;
+
+  final nombreClienteController = TextEditingController();
+  final telefonoClienteController = TextEditingController();
+  final emailClienteController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +45,9 @@ class _VentaPageState extends ConsumerState<VentaPage> {
   void dispose() {
     cantidadController.dispose();
     precioController.dispose();
+    nombreClienteController.dispose();
+    telefonoClienteController.dispose();
+    emailClienteController.dispose();
     super.dispose();
   }
 
@@ -66,17 +77,119 @@ class _VentaPageState extends ConsumerState<VentaPage> {
               onChanged: (value) {
                 setState(() {
                   esCredito = value;
+                  clienteSeleccionadoId = null;
+                  nombreClienteController.clear();
+                  telefonoClienteController.clear();
+                  emailClienteController.clear();
                 });
 
                 ref.read(ventaProvider.notifier).initVenta(
-                      metodoPago: value ? "CREDITO" : "EFECTIVO",
-                      esCredito: value,
-                    );
+                  metodoPago: value ? "CREDITO" : "EFECTIVO",
+                  esCredito: value,
+                );
               },
-            ),  
+            ),
 
-            const SizedBox(height: 20),
-            const Divider(),
+            /// 👇 BLOQUE CLIENTES SOLO SI ES CRÉDITO
+            if (esCredito) ...[
+              const SizedBox(height: 20),
+              const Divider(),
+              const Text(
+                "Cliente",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 15),
+
+              ToggleButtons(
+                isSelected: [
+                  usarClienteExistente,
+                  !usarClienteExistente,
+                ],
+                onPressed: (index) {
+                  setState(() {
+                    usarClienteExistente = index == 0;
+                    clienteSeleccionadoId = null;
+                    nombreClienteController.clear();
+                    telefonoClienteController.clear();
+                    emailClienteController.clear();
+                  });
+                },
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text("Existente"),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Text("Nuevo"),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 15),
+
+              if (usarClienteExistente)
+                ref.watch(clientesProvider).when(
+                  data: (clientes) {
+                    return DropdownButtonFormField<int>(
+                      value: clienteSeleccionadoId,
+                      decoration: const InputDecoration(
+                        labelText: "Seleccionar cliente",
+                        border: OutlineInputBorder(),
+                      ),
+                      items: clientes
+                          .map(
+                            (c) => DropdownMenuItem<int>(
+                              value: c.id,
+                              child: Text("${c.nombre} | Deuda: S/. ${c.saldoTotal}"),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          clienteSeleccionadoId = value;
+                        });
+
+                        if (value != null) {
+                          ref
+                              .read(ventaProvider.notifier)
+                              .setClienteExistente(value);
+                        }
+                      },
+                    );
+                  },
+                  loading: () => const CircularProgressIndicator(),
+                  error: (_, __) => const Text("Error cargando clientes"),
+                )
+              else ...[
+                TextField(
+                  controller: nombreClienteController,
+                  decoration: const InputDecoration(
+                    labelText: "Nombre",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: telefonoClienteController,
+                  decoration: const InputDecoration(
+                    labelText: "Teléfono",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: emailClienteController,
+                  decoration: const InputDecoration(
+                    labelText: "Email",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 20),
+              const Divider(),
+            ],
 
             const Text(
               "Productos",
@@ -277,6 +390,33 @@ class _VentaPageState extends ConsumerState<VentaPage> {
                         const SnackBar(content: Text("Agrega al menos un producto")),
                     );
                     return;
+                    }
+
+                    if (esCredito) {
+                      if (usarClienteExistente && clienteSeleccionadoId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Seleccione un cliente")),
+                        );
+                        return;
+                      }
+
+                      if (!usarClienteExistente) {
+
+                        if (nombreClienteController.text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Ingrese el nombre del cliente")),
+                          );
+                          return;
+                        }
+
+                        ref.read(ventaProvider.notifier).setClienteNuevo(
+                          ClienteNuevo(
+                            nombre: nombreClienteController.text,
+                            telefono: telefonoClienteController.text,
+                            email: emailClienteController.text,
+                          ),
+                        );
+                      }
                     }
 
                     try {

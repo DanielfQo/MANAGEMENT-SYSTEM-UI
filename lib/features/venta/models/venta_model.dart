@@ -63,19 +63,20 @@ class VentaModel {
   });
 
   VentaModel copyWith({
-    int? tiendaId,
-    String? metodoPago,
-    bool? esCredito,
-    int? clienteId,
-    ClienteNuevo? cliente,
-    List<VentaProducto>? productos,
+  int? tiendaId,
+  String? metodoPago,
+  bool? esCredito,
+  int? clienteId,
+  ClienteNuevo? cliente,
+  List<VentaProducto>? productos,
+  bool resetCliente = false,
   }) {
     return VentaModel(
       tiendaId: tiendaId ?? this.tiendaId,
       metodoPago: metodoPago ?? this.metodoPago,
       esCredito: esCredito ?? this.esCredito,
-      clienteId: clienteId,
-      cliente: cliente,
+      clienteId: resetCliente ? clienteId : (clienteId ?? this.clienteId),
+      cliente: resetCliente ? cliente : (cliente ?? this.cliente),
       productos: productos ?? this.productos,
     );
   }

@@ -59,9 +59,9 @@ class VentaNotifier extends Notifier<VentaModel?> {
     if (state == null) return;
 
     state = state!.copyWith(
-      esCredito: true,
       clienteId: clienteId,
       cliente: null,
+      resetCliente: true,
     );
   }
 
@@ -69,9 +69,9 @@ class VentaNotifier extends Notifier<VentaModel?> {
     if (state == null) return;
 
     state = state!.copyWith(
-      esCredito: true,
-      cliente: cliente,
       clienteId: null,
+      cliente: cliente,
+      resetCliente: true,
     );
   }
 
