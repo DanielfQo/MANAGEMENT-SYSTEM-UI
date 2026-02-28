@@ -1,5 +1,6 @@
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/models/auth_response_model.dart';
+import 'package:management_system_ui/features/auth/models/user_me_model.dart';
 
 final authRepositoryProvider = Provider((ref) {
   final dio = ref.watch(dioProvider);
@@ -27,5 +28,10 @@ class AuthRepository {
     } catch (e) {
       throw Exception('Error al iniciar sesión');
     }
+  }
+
+  Future<UserMeModel> getMe() async {
+    final response = await _dio.get('auth/me/');
+    return UserMeModel.fromJson(response.data);
   }
 }
