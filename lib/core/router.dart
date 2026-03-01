@@ -7,8 +7,10 @@ import 'package:management_system_ui/features/auth/tienda_selection_page.dart';
 import 'package:management_system_ui/features/lote/lote_page.dart';
 import 'package:management_system_ui/features/venta/venta_page.dart';
 import 'package:management_system_ui/features/home/home_page.dart';
-
-// Importa tu InventoryPage cuando la crees
+import 'package:management_system_ui/features/lote/lote_list_page.dart';
+import 'package:management_system_ui/features/lote/inventario_page.dart';
+import 'package:management_system_ui/features/venta/ventas_page.dart';
+import 'package:management_system_ui/features/venta/venta_historial_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   // Escuchamos el estado de autenticación
@@ -23,6 +25,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/lotes',
+        builder: (context, state) => const InventarioPage(),
+      ),
+      GoRoute(
+        path: '/lotes/stock',
+        builder: (context, state) => const LoteListPage(),
+      ),
+      GoRoute(
+        path: '/lotes/crear',
         builder: (context, state) => const LotePage(),
       ),
       GoRoute(
@@ -30,8 +40,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const TiendaSelectionPage(),
       ),
       GoRoute(
-        path: '/venta',
+        path: '/ventas',
+        builder: (context, state) => const VentasPage(),
+      ),
+      GoRoute(
+        path: '/ventas/nueva',
         builder: (context, state) => const VentaPage(),
+      ),
+      GoRoute(
+        path: '/ventas/historial',
+        builder: (context, state) => const VentaHistorialPage(),
       ),
       GoRoute(
         path: '/home',

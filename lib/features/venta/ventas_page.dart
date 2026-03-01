@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class VentasPage extends StatelessWidget {
+  const VentasPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Panel Principal"),
+        title: const Text("Ventas"),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/home'),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -21,9 +24,9 @@ class HomePage extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  context.go('/lotes');
+                  context.go('/ventas/nueva');
                 },
-                child: const Text("Inventario"),
+                child: const Text("Nueva Venta"),
               ),
             ),
 
@@ -33,9 +36,9 @@ class HomePage extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  context.go('/ventas');
+                  context.go('/ventas/historial');
                 },
-                child: const Text("Ventas"),
+                child: const Text("Historial de Ventas"),
               ),
             ),
           ],

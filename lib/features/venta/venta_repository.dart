@@ -17,11 +17,13 @@ class VentaRepository {
   final Dio _dio;
   VentaRepository(this._dio);
 
-  Future<void> crearVenta(VentaModel venta) async {
-    await _dio.post(
+  Future<VentaResponse> crearVenta(VentaModel venta) async {
+    final response = await _dio.post(
       '/sales/ventas/',
       data: venta.toJson(),
     );
+
+    return VentaResponse.fromJson(response.data);
   }
 
   Future<List<ClienteModel>> getClientes() async {
@@ -50,6 +52,19 @@ class VentaRepository {
     }
 
     return productos;
+  }
+
+  Future<List<VentaResponse>> getVentas({required int tiendaId}) async {
+    final response = await _dio.get(
+      '/sales/ventas/',
+      queryParameters: {
+        "tienda": tiendaId,
+      },
+    );
+
+    return (response.data as List)
+        .map((e) => VentaResponse.fromJson(e))
+        .toList();
   }
 
 }

@@ -49,7 +49,7 @@ class _LotePageState extends ConsumerState<LotePage> {
         title: const Text("Crear Lote"),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/home'),
+          onPressed: () => context.go('/lotes'),
         ),
       ),
       body: SingleChildScrollView(

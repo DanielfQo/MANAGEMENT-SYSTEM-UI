@@ -100,3 +100,63 @@ class VentaModel {
     return data;
   }
 }
+
+class VentaResponse {
+  final int id;
+  final String fecha;
+  final String metodoPago;
+  final bool esCredito;
+  final double total;
+  final String tiendaNombre;
+  final String usuarioNombre;
+  final String? clienteNombre;
+  final List<DetalleVentaResponse> detalle;
+
+  VentaResponse({
+    required this.id,
+    required this.fecha,
+    required this.metodoPago,
+    required this.esCredito,
+    required this.total,
+    required this.tiendaNombre,
+    required this.usuarioNombre,
+    required this.detalle,
+    this.clienteNombre,
+  });
+
+  factory VentaResponse.fromJson(Map<String, dynamic> json) {
+    return VentaResponse(
+      id: json['id'],
+      fecha: json['fecha'],
+      metodoPago: json['metodo_pago'],
+      esCredito: json['es_credito'],
+      total: double.parse(json['total'].toString()),
+      tiendaNombre: json['tienda']['nombre_sede'],
+      usuarioNombre: json['usuario_tienda']['nombre'],
+      clienteNombre: json['cliente']?['nombre'],
+      detalle: (json['detalle'] as List)
+          .map((e) => DetalleVentaResponse.fromJson(e))
+          .toList(),
+    );
+  }
+}
+
+class DetalleVentaResponse {
+  final String producto;
+  final int cantidad;
+  final String precioVenta;
+
+  DetalleVentaResponse({
+    required this.producto,
+    required this.cantidad,
+    required this.precioVenta,
+  });
+
+  factory DetalleVentaResponse.fromJson(Map<String, dynamic> json) {
+    return DetalleVentaResponse(
+      producto: json['producto'],
+      cantidad: json['cantidad'],
+      precioVenta: json['precio_venta'],
+    );
+  }
+}

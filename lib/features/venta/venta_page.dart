@@ -29,6 +29,109 @@ class _VentaPageState extends ConsumerState<VentaPage> {
   final telefonoClienteController = TextEditingController();
   final emailClienteController = TextEditingController();
 
+  void _mostrarBoleta(BuildContext context, VentaResponse ventaGuardada) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          title: Text("Boleta N° ${ventaGuardada.id}"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  Text("Fecha: ${ventaGuardada.fecha}"),
+                  const SizedBox(height: 5),
+                  Text("Tienda: ${ventaGuardada.tiendaNombre}"),
+                  const SizedBox(height: 5),
+                  Text("Atendido por: ${ventaGuardada.usuarioNombre}"),
+                  const SizedBox(height: 10),
+
+                  Text("Método de Pago: ${ventaGuardada.metodoPago}"),
+                  const SizedBox(height: 10),
+
+                  if (ventaGuardada.esCredito && ventaGuardada.clienteNombre != null) ...[
+                    const Divider(),
+                    Text("Cliente: ${ventaGuardada.clienteNombre}"),
+                    const Divider(),
+                  ],
+
+                  const SizedBox(height: 10),
+
+                  const Text(
+                    "Detalle",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  ...ventaGuardada.detalle.map((item) {
+                    final precio = double.parse(item.precioVenta);
+                    final subtotal = precio * item.cantidad;
+
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(item.producto),
+                      subtitle: Text(
+                          "Cant: ${item.cantidad}  |  S/. ${precio.toStringAsFixed(2)}"),
+                      trailing: Text(
+                        "S/. ${subtotal.toStringAsFixed(2)}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }),
+
+                  const Divider(),
+
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      "TOTAL: S/. ${ventaGuardada.total}",
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+
+                // AQUÍ SE LIMPIA TODO
+                ref.read(ventaProvider.notifier).initVenta(
+                  metodoPago: "EFECTIVO",
+                  esCredito: false,
+                );
+
+                setState(() {
+                  esCredito = false;
+                  productoSeleccionadoId = null;
+                  precioVentaBase = null;
+                });
+
+                cantidadController.clear();
+                precioController.clear();
+                nombreClienteController.clear();
+                telefonoClienteController.clear();
+                emailClienteController.clear();
+              },
+              child: const Text("Nueva Venta"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -60,9 +163,10 @@ class _VentaPageState extends ConsumerState<VentaPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Nueva Venta"),
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/home'),
+          onPressed: () => context.go('/ventas'),
         ),
       ),
       body: Padding(
@@ -420,27 +524,16 @@ class _VentaPageState extends ConsumerState<VentaPage> {
                     }
 
                     try {
-                    await ref.read(ventaProvider.notifier).guardarVenta();
+                    final ventaGuardada =
+                        await ref.read(ventaProvider.notifier).guardarVenta();
+                    ref.invalidate(clientesProvider);
+                    _mostrarBoleta(context, ventaGuardada);
 
                     if (!mounted) return;
 
                     ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("Venta realizada")),
                     );
-
-                    ref.read(ventaProvider.notifier).initVenta(
-                        metodoPago: "EFECTIVO",
-                        esCredito: false,
-                    );
-
-                    setState(() {
-                        esCredito = false;
-                        productoSeleccionadoId = null;
-                        precioVentaBase = null;
-                    });
-
-                    cantidadController.clear();
-                    precioController.clear();
 
                     } catch (_) {
                     if (!mounted) return;

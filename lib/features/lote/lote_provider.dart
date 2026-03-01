@@ -2,6 +2,7 @@ import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'models/lote_model.dart';
 import 'lote_repository.dart';
+import 'models/lote_response_model.dart';
 
 final loteProvider =
     NotifierProvider<LoteNotifier, LoteModel?>(LoteNotifier.new);
@@ -9,6 +10,15 @@ final loteProvider =
 final productosProvider = FutureProvider<List<ProductModel>>((ref) async {
   final repository = ref.watch(loteRepositoryProvider);
   return repository.getProductos();
+});
+
+final lotesProvider = FutureProvider<List<LoteResponse>>((ref) async {
+  final tiendaId = ref.watch(authProvider).selectedTiendaId;
+
+  if (tiendaId == null) return [];
+
+  final repository = ref.watch(loteRepositoryProvider);
+  return repository.getLotes(tiendaId);
 });
 
 class LoteNotifier extends Notifier<LoteModel?> {

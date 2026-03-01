@@ -23,6 +23,15 @@ final productosStockProvider =
   return repo.getStock(tiendaId);
 });
 
+final ventasHistorialProvider =
+    FutureProvider<List<VentaResponse>>((ref) async {
+  final tiendaId = ref.watch(authProvider).selectedTiendaId;
+  if (tiendaId == null) return [];
+
+  final repo = ref.watch(ventaRepositoryProvider);
+  return repo.getVentas(tiendaId: tiendaId);
+});
+
 class VentaNotifier extends Notifier<VentaModel?> {
   late final VentaRepository _repository;
 
@@ -75,8 +84,10 @@ class VentaNotifier extends Notifier<VentaModel?> {
     );
   }
 
-  Future<void> guardarVenta() async {
-    if (state == null) return;
+  Future<VentaResponse> guardarVenta() async {
+    if (state == null) {
+      throw Exception("No hay venta para guardar");
+    }
 
     for (final producto in state!.productos) {
       if (producto.precioVenta != null) {
@@ -84,7 +95,9 @@ class VentaNotifier extends Notifier<VentaModel?> {
       }
     }
 
-    await _repository.crearVenta(state!);
+    final ventaGuardada = await _repository.crearVenta(state!);
     state = null;
+
+    return ventaGuardada;
   }
 }
