@@ -10,3 +10,5 @@ export 'package:go_router/go_router.dart';
 // Tus archivos de core que usas en todos lados
 export 'network/api_client.dart';
 export 'constants/constants.dart';
+
+export 'utils/storage_service.dart';

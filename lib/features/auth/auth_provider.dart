@@ -31,7 +31,7 @@ class AuthState {
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage,
+      errorMessage: errorMessage ?? this.errorMessage,
       authData: authData ?? this.authData,
       userMe: userMe ?? this.userMe,
       selectedTiendaId: selectedTiendaId ?? this.selectedTiendaId,

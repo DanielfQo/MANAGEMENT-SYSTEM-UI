@@ -7,8 +7,8 @@ class AuthResponseModel {
   // Convierte el JSON de Django a este objeto
   factory AuthResponseModel.fromJson(Map<String, dynamic> json) {
     return AuthResponseModel(
-      access: json['access'],
       refresh: json['refresh'],
+      access: json['access'],
     );
   }
 }
