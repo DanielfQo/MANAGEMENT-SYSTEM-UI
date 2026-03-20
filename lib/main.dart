@@ -35,8 +35,6 @@ class _MyAppState extends ConsumerState<MyApp> {
   }
 
   Future<void> _initDeepLinks() async {
-    final router = ref.read(routerProvider);
-
     // App cerrada (cold start)
     final initialLink = await _appLinks.getInitialLink();
     if (initialLink != null) {

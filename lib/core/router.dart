@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:riverpod/riverpod.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:management_system_ui/core/common_libs.dart';
-import 'package:management_system_ui/core/constants/constants.dart';
 import 'package:management_system_ui/features/auth/auth_page.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'package:management_system_ui/features/auth/tienda_selection_page.dart';

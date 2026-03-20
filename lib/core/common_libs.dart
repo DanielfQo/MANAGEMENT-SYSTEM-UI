@@ -1,7 +1,5 @@
 // lib/core/common_libs.dart
 
-
-import 'package:flutter/material.dart';
 // Dependencias de terceros
 export 'package:flutter_riverpod/flutter_riverpod.dart';
 export 'package:dio/dio.dart';
