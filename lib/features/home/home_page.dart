@@ -1,28 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:management_system_ui/core/common_libs.dart';
+import 'package:management_system_ui/features/auth/auth_provider.dart';
+import 'package:management_system_ui/core/constants/constants.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userMe = ref.watch(authProvider).userMe;
+    final esDueno = userMe?.isDueno ?? false;
+
     return Scaffold(
       backgroundColor: const Color(0xfff3f4f6),
-
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          if (index == 1) {
-        context.go('/lotes');
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Inicio"),
-          BottomNavigationBarItem(icon: Icon(Icons.inventory), label: "Inventario"),
-          BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: "Más"),
-        ],
-      ),
 
       body: SafeArea(
         child: SingleChildScrollView(
@@ -69,30 +60,11 @@ class HomePage extends StatelessWidget {
               const SizedBox(height: 20),
 
               /// CARDS
-              _card(
-                "Ventas Hoy",
-                "\$1,250.00",
-                "+12.5%",
-                Colors.green,
-              ),
-
+              _card("Ventas Hoy", "\$1,250.00", "+12.5%", Colors.green),
               const SizedBox(height: 12),
-
-              _card(
-                "Caja Actual",
-                "\$4,800.00",
-                "+5.2%",
-                Colors.green,
-              ),
-
+              _card("Caja Actual", "\$4,800.00", "+5.2%", Colors.green),
               const SizedBox(height: 12),
-
-              _card(
-                "Alertas de Stock",
-                "5",
-                "Crítico",
-                Colors.red,
-              ),
+              _card("Alertas de Stock", "5", "Crítico", Colors.red),
 
               const SizedBox(height: 24),
 
@@ -100,27 +72,21 @@ class HomePage extends StatelessWidget {
               const Text(
                 "Acciones Rápidas",
                 style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18),
+                    fontWeight: FontWeight.bold, fontSize: 18),
               ),
 
               const SizedBox(height: 16),
 
               Row(
                 children: [
-
                   _actionButton(
                     context,
                     icon: Icons.shopping_cart,
                     label: "Nueva Venta",
                     color: const Color(0xff1f2a7c),
-                    onTap: () {
-                      context.go('/ventas');
-                    },
+                    onTap: () => context.go('/ventas'),
                   ),
-
                   const SizedBox(width: 12),
-
                   _actionButton(
                     context,
                     icon: Icons.point_of_sale,
@@ -129,22 +95,29 @@ class HomePage extends StatelessWidget {
                     border: true,
                     onTap: () {},
                   ),
-
-                  
+                  if (esDueno) ...[
+                    const SizedBox(width: 12),
+                    _actionButton(
+                      context,
+                      icon: Icons.person_add_alt_1,
+                      label: "Invitar",
+                      color: const Color(0xff1f2a7c),
+                      onTap: () => context.go('/invitation/new'),
+                    ),
+                  ],
                 ],
               ),
 
               const SizedBox(height: 24),
 
-              /// ACTIVIDAD
+              /// ACTIVIDAD RECIENTE
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: const [
                   Text(
                     "Actividad Reciente",
                     style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18),
+                        fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                   Text(
                     "VER TODO",
@@ -163,9 +136,7 @@ class HomePage extends StatelessWidget {
                 subtitle: "Hace 5 minutos • Caja 01",
                 amount: "+\$42.50",
               ),
-
               const SizedBox(height: 10),
-
               _activity(
                 icon: Icons.build,
                 title: "Reparación de Herramientas",
@@ -180,7 +151,6 @@ class HomePage extends StatelessWidget {
   }
 }
 
-/// CARD METRICA
 Widget _card(String title, String value, String badge, Color color) {
   return Container(
     padding: const EdgeInsets.all(16),
@@ -202,8 +172,8 @@ Widget _card(String title, String value, String badge, Color color) {
           children: [
             Text(title),
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
@@ -211,8 +181,7 @@ Widget _card(String title, String value, String badge, Color color) {
               child: Text(
                 badge,
                 style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold),
+                    color: color, fontWeight: FontWeight.bold),
               ),
             )
           ],
@@ -221,15 +190,13 @@ Widget _card(String title, String value, String badge, Color color) {
         Text(
           value,
           style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold),
+              fontSize: 22, fontWeight: FontWeight.bold),
         )
       ],
     ),
   );
 }
 
-/// BOTON RAPIDO
 Widget _actionButton(
   BuildContext context, {
   required IconData icon,
@@ -251,8 +218,7 @@ Widget _actionButton(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon,
-                color: border ? Colors.black : Colors.white),
+            Icon(icon, color: border ? Colors.black : Colors.white),
             const SizedBox(height: 8),
             Text(
               label,
@@ -269,7 +235,6 @@ Widget _actionButton(
   );
 }
 
-/// ITEM ACTIVIDAD
 Widget _activity({
   required IconData icon,
   required String title,
@@ -294,20 +259,15 @@ Widget _activity({
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold)),
-              Text(
-                subtitle,
-                style: const TextStyle(color: Colors.grey),
-              )
+                  style:
+                      const TextStyle(fontWeight: FontWeight.bold)),
+              Text(subtitle,
+                  style: const TextStyle(color: Colors.grey)),
             ],
           ),
         ),
-        Text(
-          amount,
-          style: const TextStyle(
-              fontWeight: FontWeight.bold),
-        )
+        Text(amount,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
       ],
     ),
   );

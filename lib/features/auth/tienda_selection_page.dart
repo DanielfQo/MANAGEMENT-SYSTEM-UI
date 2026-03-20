@@ -21,7 +21,7 @@ class TiendaSelectionPage extends ConsumerWidget {
 
           return ListTile(
             title: Text(tienda.tiendaNombre),
-            subtitle: Text("Rol: ${tienda.rol}"),
+            subtitle: Text(authState.userMe?.rol ?? ''),
             onTap: () {
               notifier.selectTienda(tienda.tiendaId);
               Navigator.pushReplacementNamed(context, '/inventory');

@@ -83,6 +83,10 @@ class AuthNotifier extends Notifier<AuthState> {
   void selectTienda(int tiendaId) {
     state = state.copyWith(selectedTiendaId: tiendaId);
   }
+
+  void updateUserMe(UserMeModel userMe) {
+    state = state.copyWith(userMe: userMe);
+  }
 }
 
 
