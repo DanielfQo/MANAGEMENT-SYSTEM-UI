@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:riverpod/riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:management_system_ui/core/common_libs.dart';
+import 'package:management_system_ui/core/constants/constants.dart';
 import 'package:management_system_ui/features/auth/auth_page.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'package:management_system_ui/features/auth/tienda_selection_page.dart';
@@ -11,73 +14,211 @@ import 'package:management_system_ui/features/lote/lote_list_page.dart';
 import 'package:management_system_ui/features/lote/inventario_page.dart';
 import 'package:management_system_ui/features/venta/ventas_page.dart';
 import 'package:management_system_ui/features/venta/venta_historial_page.dart';
+import 'package:management_system_ui/features/invitation/invitation_form_page.dart';
+import 'package:management_system_ui/features/invitation/invitation_accept_page.dart';
+import 'package:management_system_ui/features/onboarding/profile_complete_page.dart';
+import 'package:management_system_ui/features/onboarding/setup_page.dart';
+import 'package:management_system_ui/features/users/usuarios_page.dart';
+
+// ─── Auth notifier ────────────────────────────────────────────────────────────
+
+class AuthStateNotifier extends ChangeNotifier {
+  final Ref _ref;
+  AuthStateNotifier(this._ref) {
+    _ref.listen(authProvider, (_, __) => notifyListeners());
+  }
+}
+
+final authStateNotifierProvider = Provider<AuthStateNotifier>((ref) {
+  return AuthStateNotifier(ref);
+});
+
+// ─── Shell con bottom nav persistente ────────────────────────────────────────
+
+class MainShell extends ConsumerWidget {
+  final Widget child;
+  const MainShell({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userMe = ref.watch(authProvider).userMe;
+    final esDueno = userMe?.isDueno ?? false;
+    final location = GoRouterState.of(context).uri.path;
+
+    int currentIndex = 0;
+    if (location.startsWith('/lotes')) currentIndex = 1;
+    if (location == '/usuarios' || location == '/ventas') currentIndex = 2;
+
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: currentIndex,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: const Color(0xFF2F3A8F),
+        unselectedItemColor: Colors.grey,
+        onTap: (index) {
+          if (index == 0) context.go('/home');
+          if (index == 1) context.go('/lotes');
+          if (index == 2) {
+            esDueno ? context.go('/usuarios') : context.go('/ventas');
+          }
+        },
+        items: [
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.inventory_2_outlined),
+            activeIcon: Icon(Icons.inventory_2),
+            label: 'Inventario',
+          ),
+          if (esDueno)
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.people_outline),
+              activeIcon: Icon(Icons.people),
+              label: 'Usuarios',
+            )
+          else
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.point_of_sale_outlined),
+              activeIcon: Icon(Icons.point_of_sale),
+              label: 'Ventas',
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Router ───────────────────────────────────────────────────────────────────
 
 final routerProvider = Provider<GoRouter>((ref) {
-  // Escuchamos el estado de autenticación
-  final authState = ref.watch(authProvider);
+  final authNotifier = ref.read(authStateNotifierProvider);
 
   return GoRouter(
     initialLocation: '/login',
+    refreshListenable: authNotifier,
     routes: [
+
+      // ── Rutas públicas (sin shell) ──────────────────────────────────
+      GoRoute(
+        path: '/invite',
+        builder: (context, state) {
+          final token = state.uri.queryParameters['token'];
+          return InvitationAcceptPage(token: token);
+        },
+      ),
+
+      // ── Auth (sin shell) ────────────────────────────────────────────
       GoRoute(
         path: '/login',
         builder: (context, state) => const AuthPage(),
       ),
+
+      // ── Onboarding (sin shell) ──────────────────────────────────────
       GoRoute(
-        path: '/lotes',
-        builder: (context, state) => const InventarioPage(),
+        path: '/profile/complete',
+        builder: (context, state) => const ProfileCompletePage(),
       ),
       GoRoute(
-        path: '/lotes/stock',
-        builder: (context, state) => const LoteListPage(),
-      ),
-      GoRoute(
-        path: '/lotes/crear',
-        builder: (context, state) => const LotePage(),
+        path: '/setup',
+        builder: (context, state) => const SetupPage(),
       ),
       GoRoute(
         path: '/select-store',
         builder: (context, state) => const TiendaSelectionPage(),
       ),
+
+      // ── Rutas con bottom nav (dentro del shell) ─────────────────────
+      ShellRoute(
+        builder: (context, state, child) => MainShell(child: child),
+        routes: [
+          GoRoute(
+            path: '/home',
+            builder: (context, state) => const HomePage(),
+          ),
+          GoRoute(
+            path: '/usuarios',
+            builder: (context, state) => const UsuariosPage(),
+          ),
+          GoRoute(
+            path: '/lotes',
+            builder: (context, state) => const InventarioPage(),
+          ),
+          GoRoute(
+            path: '/lotes/stock',
+            builder: (context, state) => const LoteListPage(),
+          ),
+          GoRoute(
+            path: '/lotes/crear',
+            builder: (context, state) => const LotePage(),
+          ),
+          GoRoute(
+            path: '/ventas',
+            builder: (context, state) => const VentasPage(),
+          ),
+          GoRoute(
+            path: '/ventas/historial',
+            builder: (context, state) => const VentaHistorialPage(),
+          ),
+        ],
+      ),
+
+      // ── Rutas sin shell (pantallas completas) ───────────────────────
       GoRoute(
-        path: '/ventas',
-        builder: (context, state) => const VentasPage(),
+        path: '/invitation/new',
+        builder: (context, state) => const InvitationFormPage(),
       ),
       GoRoute(
         path: '/ventas/nueva',
         builder: (context, state) => const VentaPage(),
       ),
-      GoRoute(
-        path: '/ventas/historial',
-        builder: (context, state) => const VentaHistorialPage(),
-      ),
-      GoRoute(
-        path: '/home',
-        builder: (context, state) => const HomePage(),
-      ),
     ],
-    
-    // REDIRECCIÓN LÓGICA: El "Guardian" de tu app
-    redirect: (context, state) {
-      final loggingIn = state.matchedLocation == '/login';
-      final selectingStore = state.matchedLocation == '/select-store';
 
+    redirect: (context, state) {
+      final authState = ref.read(authProvider);
+      final currentPath = state.uri.path;
+
+      // ── Rutas siempre públicas ──────────────────────────────────────
+      if (currentPath == '/invite') return null;
+
+      // ── Sin autenticación → login ───────────────────────────────────
       if (!authState.isAuthenticated) {
-        return loggingIn ? null : '/login';
+        return currentPath == '/login' ? null : '/login';
       }
 
-      final tiendas = authState.userMe?.tiendas ?? [];
-      final hasMultipleStores = tiendas.length > 1;
-      final hasStoreSelected = authState.selectedTiendaId != null;
+      final userMe = authState.userMe;
+      final tiendas = userMe?.tiendas ?? [];
+      final isDueno = userMe?.isDueno ?? false;
 
-      // Si ya está autenticado y quiere ir al login, verificar si tiene tiendas
-      if (!hasStoreSelected) {
-        // Si tiene multiples tiendas -> ir a seleccionar tienda
-        if (hasMultipleStores) {
-          return selectingStore ? null : '/select-store';
+      // 1. Perfil incompleto → completar perfil
+      final isProfileIncomplete = userMe?.isProfileIncomplete ?? false;
+      if (isProfileIncomplete) {
+        return currentPath == '/profile/complete' ? null : '/profile/complete';
+      }
+
+      // 2. DUEÑO sin tiendas → setup obligatorio
+      if (isDueno && tiendas.isEmpty) {
+        return currentPath == '/setup' ? null : '/setup';
+      }
+
+      // 3. Onboarding completado → salir de rutas de onboarding
+      final onboardingPaths = ['/login', '/profile/complete', '/setup'];
+      if (onboardingPaths.contains(currentPath)) {
+        if (tiendas.length > 1 && authState.selectedTiendaId == null) {
+          return '/select-store';
         }
+        return '/home';
+      }
 
-        // Si solo tiene 1 tienda -> asignarla automaticamente
+      // 4. Selección de tienda pendiente
+      final hasStoreSelected = authState.selectedTiendaId != null;
+      if (!hasStoreSelected) {
+        if (tiendas.length > 1) {
+          return currentPath == '/select-store' ? null : '/select-store';
+        }
         if (tiendas.length == 1) {
           Future.microtask(() {
             ref.read(authProvider.notifier).selectTienda(tiendas.first.tiendaId);
@@ -86,8 +227,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
       }
 
-      // Si ya tiene tienda seleccionada y esta en login o select- -> inventory
-      if (hasStoreSelected && (loggingIn || selectingStore)) {
+      if (hasStoreSelected && currentPath == '/select-store') {
         return '/home';
       }
 
