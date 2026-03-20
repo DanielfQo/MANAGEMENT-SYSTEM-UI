@@ -91,7 +91,7 @@ class VentaNotifier extends Notifier<VentaModel?> {
 
     for (final producto in state!.productos) {
       if (producto.precioVenta != null) {
-        final precio = double.parse(producto.precioVenta!);
+        double.parse(producto.precioVenta!);
       }
     }
 
