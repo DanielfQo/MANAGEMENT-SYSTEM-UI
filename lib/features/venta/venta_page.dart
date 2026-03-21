@@ -29,7 +29,7 @@ class _VentaPageState extends ConsumerState<VentaPage> {
   final telefonoClienteController = TextEditingController();
   final emailClienteController = TextEditingController();
 
-  void _mostrarBoleta(BuildContext context, VentaResponse ventaGuardada) {
+  void _mostrarBoleta(VentaResponse ventaGuardada) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -106,7 +106,6 @@ class _VentaPageState extends ConsumerState<VentaPage> {
               onPressed: () {
                 Navigator.of(context).pop();
 
-                // AQUÍ SE LIMPIA TODO
                 ref.read(ventaProvider.notifier).initVenta(
                   metodoPago: "EFECTIVO",
                   esCredito: false,
@@ -236,7 +235,7 @@ class _VentaPageState extends ConsumerState<VentaPage> {
                 ref.watch(clientesProvider).when(
                   data: (clientes) {
                     return DropdownButtonFormField<int>(
-                      value: clienteSeleccionadoId,
+                      initialValue: clienteSeleccionadoId,
                       decoration: const InputDecoration(
                         labelText: "Seleccionar cliente",
                         border: OutlineInputBorder(),
@@ -263,7 +262,7 @@ class _VentaPageState extends ConsumerState<VentaPage> {
                     );
                   },
                   loading: () => const CircularProgressIndicator(),
-                  error: (_, __) => const Text("Error cargando clientes"),
+                  error: (_, _) => const Text("Error cargando clientes"),
                 )
               else ...[
                 TextField(
@@ -317,7 +316,7 @@ class _VentaPageState extends ConsumerState<VentaPage> {
                 }
 
                 return DropdownButtonFormField<int>(
-                  value: productoSeleccionadoId,
+                  initialValue: productoSeleccionadoId,
                   decoration: const InputDecoration(
                     labelText: "Producto",
                     border: OutlineInputBorder(),
@@ -405,7 +404,7 @@ class _VentaPageState extends ConsumerState<VentaPage> {
                         productoId: productoSeleccionadoId!,
                         cantidad: cantidad,
                         precioVenta:
-                            precio != null ? precio.toString() : null,
+                            precio?.toString(),
                       ),
                     );
 
@@ -523,24 +522,22 @@ class _VentaPageState extends ConsumerState<VentaPage> {
                       }
                     }
 
+                    final messenger = ScaffoldMessenger.of(context);
                     try {
-                    final ventaGuardada =
-                        await ref.read(ventaProvider.notifier).guardarVenta();
-                    ref.invalidate(clientesProvider);
-                    _mostrarBoleta(context, ventaGuardada);
+                      final ventaGuardada =
+                          await ref.read(ventaProvider.notifier).guardarVenta();
+                      ref.invalidate(clientesProvider);
 
-                    if (!mounted) return;
+                      if (!mounted) return;
+                      _mostrarBoleta(ventaGuardada);
 
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Venta realizada")),
-                    );
-
+                      messenger.showSnackBar(
+                          const SnackBar(content: Text("Venta realizada")),
+                      );
                     } catch (_) {
-                    if (!mounted) return;
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Error al realizar la venta")),
-                    );
+                      messenger.showSnackBar(
+                          const SnackBar(content: Text("Error al realizar la venta")),
+                      );
                     }
                 },
                 child: const Text("REALIZAR VENTA"),
