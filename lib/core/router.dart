@@ -15,21 +15,18 @@ import 'package:management_system_ui/features/invitation/invitation_accept_page.
 import 'package:management_system_ui/features/onboarding/profile_complete_page.dart';
 import 'package:management_system_ui/features/onboarding/setup_page.dart';
 import 'package:management_system_ui/features/users/usuarios_page.dart';
-
-// ─── Auth notifier ────────────────────────────────────────────────────────────
+import 'package:management_system_ui/features/asistencia/asistencia_page.dart';
 
 class AuthStateNotifier extends ChangeNotifier {
   final Ref _ref;
   AuthStateNotifier(this._ref) {
-    _ref.listen(authProvider, (_, __) => notifyListeners());
+    _ref.listen(authProvider, (_, _) => notifyListeners());
   }
 }
 
 final authStateNotifierProvider = Provider<AuthStateNotifier>((ref) {
   return AuthStateNotifier(ref);
 });
-
-// ─── Shell con bottom nav persistente ────────────────────────────────────────
 
 class MainShell extends ConsumerWidget {
   final Widget child;
@@ -39,11 +36,14 @@ class MainShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final userMe = ref.watch(authProvider).userMe;
     final esDueno = userMe?.isDueno ?? false;
+    final esAdmin = userMe?.rol == Roles.administrador;
+    final puedeVerUsuarios = esDueno || esAdmin;
     final location = GoRouterState.of(context).uri.path;
 
     int currentIndex = 0;
     if (location.startsWith('/lotes')) currentIndex = 1;
     if (location == '/usuarios' || location == '/ventas') currentIndex = 2;
+    if (location == '/asistencia' && puedeVerUsuarios) currentIndex = 3;
 
     return Scaffold(
       body: child,
@@ -56,8 +56,11 @@ class MainShell extends ConsumerWidget {
           if (index == 0) context.go('/home');
           if (index == 1) context.go('/lotes');
           if (index == 2) {
-            esDueno ? context.go('/usuarios') : context.go('/ventas');
+            puedeVerUsuarios
+                ? context.go('/usuarios')
+                : context.go('/ventas');
           }
+          if (index == 3 && puedeVerUsuarios) context.go('/asistencia');
         },
         items: [
           const BottomNavigationBarItem(
@@ -70,7 +73,7 @@ class MainShell extends ConsumerWidget {
             activeIcon: Icon(Icons.inventory_2),
             label: 'Inventario',
           ),
-          if (esDueno)
+          if (puedeVerUsuarios)
             const BottomNavigationBarItem(
               icon: Icon(Icons.people_outline),
               activeIcon: Icon(Icons.people),
@@ -82,13 +85,17 @@ class MainShell extends ConsumerWidget {
               activeIcon: Icon(Icons.point_of_sale),
               label: 'Ventas',
             ),
+          if (puedeVerUsuarios)
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.access_time_outlined),
+              activeIcon: Icon(Icons.access_time_filled),
+              label: 'Asistencia',
+            ),
         ],
       ),
     );
   }
 }
-
-// ─── Router ───────────────────────────────────────────────────────────────────
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = ref.read(authStateNotifierProvider);
@@ -97,8 +104,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/login',
     refreshListenable: authNotifier,
     routes: [
-
-      // ── Rutas públicas (sin shell) ──────────────────────────────────
       GoRoute(
         path: '/invite',
         builder: (context, state) {
@@ -106,14 +111,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           return InvitationAcceptPage(token: token);
         },
       ),
-
-      // ── Auth (sin shell) ────────────────────────────────────────────
       GoRoute(
         path: '/login',
         builder: (context, state) => const AuthPage(),
       ),
-
-      // ── Onboarding (sin shell) ──────────────────────────────────────
       GoRoute(
         path: '/profile/complete',
         builder: (context, state) => const ProfileCompletePage(),
@@ -126,8 +127,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/select-store',
         builder: (context, state) => const TiendaSelectionPage(),
       ),
-
-      // ── Rutas con bottom nav (dentro del shell) ─────────────────────
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),
         routes: [
@@ -138,6 +137,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/usuarios',
             builder: (context, state) => const UsuariosPage(),
+          ),
+          GoRoute(
+            path: '/asistencia',
+            builder: (context, state) => const AsistenciaPage(),
           ),
           GoRoute(
             path: '/lotes',
@@ -161,8 +164,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-
-      // ── Rutas sin shell (pantallas completas) ───────────────────────
       GoRoute(
         path: '/invitation/new',
         builder: (context, state) => const InvitationFormPage(),
@@ -177,10 +178,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(authProvider);
       final currentPath = state.uri.path;
 
-      // ── Rutas siempre públicas ──────────────────────────────────────
       if (currentPath == '/invite') return null;
 
-      // ── Sin autenticación → login ───────────────────────────────────
       if (!authState.isAuthenticated) {
         return currentPath == '/login' ? null : '/login';
       }
@@ -189,18 +188,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       final tiendas = userMe?.tiendas ?? [];
       final isDueno = userMe?.isDueno ?? false;
 
-      // 1. Perfil incompleto → completar perfil
       final isProfileIncomplete = userMe?.isProfileIncomplete ?? false;
       if (isProfileIncomplete) {
         return currentPath == '/profile/complete' ? null : '/profile/complete';
       }
 
-      // 2. DUEÑO sin tiendas → setup obligatorio
       if (isDueno && tiendas.isEmpty) {
         return currentPath == '/setup' ? null : '/setup';
       }
 
-      // 3. Onboarding completado → salir de rutas de onboarding
       final onboardingPaths = ['/login', '/profile/complete', '/setup'];
       if (onboardingPaths.contains(currentPath)) {
         if (tiendas.length > 1 && authState.selectedTiendaId == null) {
@@ -209,7 +205,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/home';
       }
 
-      // 4. Selección de tienda pendiente
       final hasStoreSelected = authState.selectedTiendaId != null;
       if (!hasStoreSelected) {
         if (tiendas.length > 1) {
@@ -217,7 +212,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
         if (tiendas.length == 1) {
           Future.microtask(() {
-            ref.read(authProvider.notifier).selectTienda(tiendas.first.tiendaId);
+            ref
+                .read(authProvider.notifier)
+                .selectTienda(tiendas.first.tiendaId);
           });
           return null;
         }
