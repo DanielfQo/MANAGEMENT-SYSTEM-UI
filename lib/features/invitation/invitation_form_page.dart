@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:management_system_ui/core/common_libs.dart';
+import 'package:management_system_ui/core/widgets/invitation_link_sheet.dart';
 import 'invitation_provider.dart';
 import 'models/store_model.dart';
 import 'models/role_model.dart';
-import 'package:go_router/go_router.dart';
-import 'package:management_system_ui/core/constants/constants.dart';
 
 class InvitationFormPage extends ConsumerStatefulWidget {
   const InvitationFormPage({super.key});
@@ -21,10 +19,9 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
   StoreModel? _selectedTienda;
   RoleModel? _selectedRol;
 
-  // Roles que requieren tienda y salario
   bool get _requiresExtra =>
-    _selectedRol != null &&
-    Roles.requiresStore.contains(_selectedRol!.value);
+      _selectedRol != null &&
+      Roles.requiresStore.contains(_selectedRol!.value);
 
   @override
   void dispose() {
@@ -58,13 +55,6 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
         );
   }
 
-  void _shareLink(String link) {
-    Share.share(
-      '¡Te invito a unirte al sistema! Toca el link para completar tu registro:\n$link',
-      subject: 'Invitación al sistema de gestión',
-    );
-  }
-
   void _reset() {
     ref.read(invitationProvider.notifier).reset();
     _emailController.clear();
@@ -81,14 +71,26 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
     final tiendasAsync = ref.watch(tiendasProvider);
     final rolesAsync = ref.watch(rolesProvider);
 
+    // ── Mostrar bottom sheet cuando el link está listo ────────────────
+    ref.listen(invitationProvider, (prev, next) {
+      if (next.isSuccess && !(prev?.isSuccess ?? false)) {
+        InvitationLinkSheet.show(
+          context,
+          link: next.invitationLink!,
+          onClose: _reset,
+        );
+      }
+    });
+
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F7),
       appBar: AppBar(
         backgroundColor: const Color(0xFFF2F4F7),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF2F3A8F)),
-          onPressed: () => context.go('/home')
+          icon: const Icon(Icons.arrow_back_ios_new,
+              color: Color(0xFF2F3A8F)),
+          onPressed: () => context.go('/home'),
         ),
         title: const Text(
           'Invitar Usuario',
@@ -102,7 +104,6 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            /// ÍCONO SUPERIOR
             Container(
               padding: const EdgeInsets.all(18),
               decoration: const BoxDecoration(
@@ -115,37 +116,24 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
                 color: Color(0xFF2F3A8F),
               ),
             ),
-
             const SizedBox(height: 16),
-
             const Text(
               'Nuevo Colaborador',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 6),
-
             const Text(
               'El usuario recibirá un link para completar su registro',
               style: TextStyle(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
-
             const SizedBox(height: 24),
-
-            // ── FORMULARIO O RESULTADO ──────────────────────────────────
-            if (!invitationState.isSuccess) ...[
-              _buildForm(tiendasAsync, rolesAsync, invitationState),
-            ] else ...[
-              _buildSuccess(invitationState.invitationLink!),
-            ],
+            _buildForm(tiendasAsync, rolesAsync, invitationState),
           ],
         ),
       ),
     );
   }
-
-  // ─── FORMULARIO ────────────────────────────────────────────────────────────
 
   Widget _buildForm(
     AsyncValue<List<StoreModel>> tiendasAsync,
@@ -159,7 +147,7 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -172,10 +160,7 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
             'Datos del nuevo usuario',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-
           const SizedBox(height: 20),
-
-          /// EMAIL
           TextField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
@@ -190,13 +175,10 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 15),
-
-          /// ROL
           rolesAsync.when(
             loading: () => _dropdownSkeleton('Cargando roles...'),
-            error: (_, __) => _dropdownSkeleton('Error al cargar roles'),
+            error: (_, _) => _dropdownSkeleton('Error al cargar roles'),
             data: (roles) => _buildDropdown<RoleModel>(
               hint: 'Selecciona un rol',
               icon: Icons.badge_outlined,
@@ -205,18 +187,15 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
               itemLabel: (r) => r.label,
               onChanged: (r) => setState(() {
                 _selectedRol = r;
-                _selectedTienda = null; // resetear tienda al cambiar rol
+                _selectedTienda = null;
               }),
             ),
           ),
-
-          /// TIENDA Y SALARIO (solo si requiere)
           if (_requiresExtra) ...[
             const SizedBox(height: 15),
-
             tiendasAsync.when(
               loading: () => _dropdownSkeleton('Cargando tiendas...'),
-              error: (_, __) => _dropdownSkeleton('Error al cargar tiendas'),
+              error: (_, _) => _dropdownSkeleton('Error al cargar tiendas'),
               data: (tiendas) => _buildDropdown<StoreModel>(
                 hint: 'Selecciona una tienda',
                 icon: Icons.store_outlined,
@@ -226,9 +205,7 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
                 onChanged: (t) => setState(() => _selectedTienda = t),
               ),
             ),
-
             const SizedBox(height: 15),
-
             TextField(
               controller: _salarioController,
               keyboardType:
@@ -245,10 +222,7 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
               ),
             ),
           ],
-
           const SizedBox(height: 24),
-
-          /// BOTÓN
           SizedBox(
             width: double.infinity,
             height: 50,
@@ -268,7 +242,6 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
                     ),
             ),
           ),
-
           if (invitationState.errorMessage != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
@@ -281,117 +254,6 @@ class _InvitationFormPageState extends ConsumerState<InvitationFormPage> {
       ),
     );
   }
-
-  // ─── RESULTADO / LINK GENERADO ─────────────────────────────────────────────
-
-  Widget _buildSuccess(String link) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.green.withOpacity(0.1),
-            ),
-            child: const Icon(Icons.check_circle, color: Colors.green, size: 40),
-          ),
-
-          const SizedBox(height: 16),
-
-          const Text(
-            '¡Invitación lista!',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-
-          const SizedBox(height: 8),
-
-          const Text(
-            'Comparte el link con el nuevo colaborador',
-            style: TextStyle(color: Colors.grey),
-            textAlign: TextAlign.center,
-          ),
-
-          const SizedBox(height: 20),
-
-          /// LINK
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF6F7FB),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              link,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF2F3A8F),
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          /// BOTON COMPARTIR
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2F3A8F),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              onPressed: () => _shareLink(link),
-              icon: const Icon(Icons.share, color: Colors.white),
-              label: const Text(
-                'Compartir Invitación',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          /// BOTON NUEVA INVITACION
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF2F3A8F)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              onPressed: _reset,
-              child: const Text(
-                'Nueva Invitación',
-                style: TextStyle(color: Color(0xFF2F3A8F), fontSize: 16),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── HELPERS ───────────────────────────────────────────────────────────────
 
   Widget _buildDropdown<T>({
     required String hint,

@@ -158,7 +158,7 @@ Widget _card(String title, String value, String badge, Color color) {
       boxShadow: [
         BoxShadow(
           blurRadius: 10,
-          color: Colors.black.withOpacity(0.05),
+          color: Colors.black.withValues(alpha: 0.05),
         )
       ],
     ),
@@ -173,7 +173,7 @@ Widget _card(String title, String value, String badge, Color color) {
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -248,7 +248,7 @@ Widget _activity({
     child: Row(
       children: [
         CircleAvatar(
-          backgroundColor: Colors.green.withOpacity(0.15),
+          backgroundColor: Colors.green.withValues(alpha: 0.15),
           child: Icon(icon, color: Colors.green),
         ),
         const SizedBox(width: 12),

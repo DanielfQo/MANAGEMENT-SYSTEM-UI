@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:management_system_ui/core/common_libs.dart';
 import 'invitation_accept_provider.dart';
 
@@ -190,7 +189,7 @@ class _InvitationAcceptPageState extends ConsumerState<InvitationAcceptPage> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.red.withOpacity(0.1),
+              color: Colors.red.withValues(alpha: 0.1),
             ),
             child: const Icon(Icons.link_off, size: 36, color: Colors.red),
           ),
@@ -232,7 +231,7 @@ class _InvitationAcceptPageState extends ConsumerState<InvitationAcceptPage> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF2F3A8F).withOpacity(0.1),
+                  color: const Color(0xFF2F3A8F).withValues(alpha: 0.1),
                 ),
                 child: const Icon(Icons.mark_email_read_outlined,
                     size: 36, color: Color(0xFF2F3A8F)),
@@ -469,7 +468,7 @@ class _InvitationAcceptPageState extends ConsumerState<InvitationAcceptPage> {
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.05),
+          color: Colors.black.withValues(alpha: 0.05),
           blurRadius: 10,
           offset: const Offset(0, 4),
         )
