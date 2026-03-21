@@ -5,6 +5,7 @@ class UsuarioTiendaModel {
   final bool usuarioIsActive;
   final int tiendaId;
   final String tiendaNombre;
+  final String usuarioEmail;
   final String rol;
   final String rolDisplay;
   final String salario;
@@ -16,6 +17,7 @@ class UsuarioTiendaModel {
     required this.usuarioIsActive,
     required this.tiendaId,
     required this.tiendaNombre,
+    required this.usuarioEmail,
     required this.rol,
     required this.rolDisplay,
     required this.salario,
@@ -29,6 +31,7 @@ class UsuarioTiendaModel {
       usuarioIsActive: json['usuario_is_active'],
       tiendaId: json['tienda_id'],
       tiendaNombre: json['tienda_nombre'],
+      usuarioEmail: json['usuario_email'],
       rol: json['rol'],
       rolDisplay: json['rol_display'],
       salario: json['salario'],
