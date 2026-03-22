@@ -1,4 +1,5 @@
 import 'package:management_system_ui/core/common_libs.dart';
+import 'package:management_system_ui/core/network/auth_events.dart';
 import 'auth_repository.dart';
 import 'models/auth_response_model.dart';
 import 'models/user_me_model.dart';
@@ -45,6 +46,12 @@ class AuthNotifier extends Notifier<AuthState> {
   @override
   AuthState build() {
     _repository = ref.watch(authRepositoryProvider);
+    final sub = authEventController.stream.listen((event) {
+      if (event == AuthEvent.logout) {
+        state = const AuthState();
+      }
+    });
+    ref.onDispose(() => sub.cancel());
     return const AuthState();
   }
 
@@ -54,8 +61,6 @@ class AuthNotifier extends Notifier<AuthState> {
     try {
       
       final authResponse = await _repository.login(username, password);
-
-      await StorageService.saveToken(authResponse.access);
 
       final userData = await _repository.getMe();
 
@@ -77,6 +82,11 @@ class AuthNotifier extends Notifier<AuthState> {
         errorMessage: e.toString(),
       );
     }
+  }
+
+  Future<void> logout() async {
+    await StorageService.clearToken();
+    state = const AuthState();
   }
 
   void selectTienda(int tiendaId) {
