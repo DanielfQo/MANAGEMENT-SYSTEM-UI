@@ -82,28 +82,66 @@ lib/
 
 The app uses **Riverpod** for all state management. Key patterns:
 
-1. **Providers** - Single source of truth for state
+1. **Notifier Pattern** - Mutable state management (preferred pattern)
    ```dart
-   // Create a provider (immutable data or notifier for mutable)
-   final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(...);
+   // Create a notifier provider
+   final authProvider = NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
+
+   class AuthNotifier extends Notifier<AuthState> {
+     @override
+     AuthState build() => const AuthState();
+
+     Future<void> login(String username, String password) async {
+       state = state.copyWith(isLoading: true);
+       // ... update state via state = ...
+     }
+   }
    ```
 
-2. **Repositories** - Encapsulate API calls and data transformations
+2. **Repositories** - Encapsulate API calls and error handling
    ```dart
-   // Example: features/auth/auth_repository.dart
-   // Handles API communication for auth operations
+   // Example: features/tienda/tienda_repository.dart
+   // Repositories catch DioException and throw Exception with user-friendly messages
+   Future<StoreModel> getTienda() async {
+     try {
+       final response = await _dio.get('store/');
+       return StoreModel.fromJson(response.data);
+     } on DioException catch (e) {
+       throw Exception('Error message from response or default');
+     }
+   }
    ```
 
-3. **Notifiers** - Manage state transitions
+3. **FutureProvider** - For async data fetching with built-in AsyncValue
    ```dart
-   // Example: features/auth/auth_provider.dart
-   class AuthNotifier extends StateNotifier<AuthState> { ... }
+   final dataProvider = FutureProvider((ref) async {
+     return ref.watch(myRepository).fetchData();
+   });
+
+   // In UI, handle AsyncValue states:
+   final asyncData = ref.watch(dataProvider);
+   asyncData.when(
+     data: (data) => Text(data),
+     loading: () => CircularProgressIndicator(),
+     error: (error, _) => Text('Error: $error'),
+   );
    ```
 
-4. **Watching Providers** - Reactive state consumption
+4. **Watching & Reading Providers** - Reactive state consumption
    ```dart
    final authState = ref.watch(authProvider);
    final authNotifier = ref.read(authProvider.notifier);
+   ```
+
+5. **Side Effects with Listeners** - For streams and one-time operations
+   ```dart
+   // In notifier build():
+   final sub = authEventController.stream.listen((event) {
+     if (event == AuthEvent.logout) {
+       state = const AuthState();
+     }
+   });
+   ref.onDispose(() => sub.cancel());
    ```
 
 ### Navigation (GoRouter)
@@ -132,11 +170,32 @@ The app uses **Riverpod** for all state management. Key patterns:
 - Request/response logging enabled
 - Auth interceptor handles token injection and refresh
 
-### Models
+### Models & Error Handling
 
+**Models:**
 - Feature-specific models in `features/[feature]/models/`
 - Shared models in `core/models/`
 - Response models separate from domain models (e.g., `LoteResponseModel` vs `LoteModel`)
+- All models use `fromJson()` factory constructors for deserialization
+
+**Error Handling Pattern:**
+- Repositories catch `DioException` and extract error messages from API response
+- Error messages are wrapped in `Exception()` and thrown
+- UI consumes these errors via `AsyncValue.error()` in FutureProvider or error states in StateNotifier
+- Example: `throw Exception('Error al crear la tienda')` with fallback for missing data
+
+**Response Error Extraction:**
+```dart
+on DioException catch (e) {
+  final data = e.response?.data;
+  String message = 'Default error message';
+  if (data is Map) {
+    final values = data.values.first;
+    message = values is List ? values.first.toString() : values.toString();
+  }
+  throw Exception(message);
+}
+```
 
 ## Common Patterns
 
@@ -152,20 +211,40 @@ The app uses **Riverpod** for all state management. Key patterns:
 ### 2. Make an API Call
 
 ```dart
-// In repository:
-Future<T> fetchData() async {
-  final dio = ref.read(dioProvider);
-  final response = await dio.get('/endpoint');
-  return T.fromJson(response.data);
+// In repository class:
+final myRepositoryProvider = Provider((ref) {
+  final dio = ref.watch(dioProvider);
+  return MyRepository(dio);
+});
+
+class MyRepository {
+  final Dio _dio;
+  MyRepository(this._dio);
+
+  Future<MyModel> fetchData() async {
+    try {
+      final response = await _dio.get('/endpoint');
+      return MyModel.fromJson(response.data);
+    } on DioException catch (e) {
+      final errorMsg = e.response?.data?['detail'] ?? 'Error fetching data';
+      throw Exception(errorMsg);
+    }
+  }
 }
 
 // In provider:
 final dataProvider = FutureProvider((ref) async {
-  return ref.watch(myRepository).fetchData();
+  final repo = ref.watch(myRepositoryProvider);
+  return repo.fetchData();
 });
 
-// In page:
-final data = ref.watch(dataProvider);
+// In page - handle AsyncValue:
+final asyncData = ref.watch(dataProvider);
+asyncData.when(
+  data: (data) => ListView(children: [/* use data */]),
+  loading: () => const LoadingWidget(),
+  error: (error, stack) => ErrorState(message: error.toString()),
+);
 ```
 
 ### 3. Handle Auth State
@@ -200,11 +279,38 @@ Check permissions in `MainShell` (router.dart) for navigation bar visibility.
 - `lib/features/auth/auth_provider.dart` - User authentication state
 - `pubspec.yaml` - Dependencies and versioning
 
+### Shared Widgets
+
+Available reusable UI components in `core/widgets/`:
+- `EmptyState` - Displayed when no data is available
+- `ErrorState` - Displayed for error messages with retry capability
+- `StatusBadge` - For displaying status labels
+- `CustomAppBar` - Standard app bar for feature pages
+- `InvitationLinkSheet` - Bottom sheet for sharing invitation links
+
 ## Important Notes
 
+### State & Providers
 - Always use Riverpod providers instead of direct state management
-- Import shared utilities from `common_libs.dart`
-- API responses are processed in repositories before reaching providers
+- Use `Notifier<State>` pattern for mutable state (not deprecated `StateNotifier`)
+- Use `FutureProvider` for async operations and handle `.when()` for data/loading/error states
+- Import shared utilities and providers from `common_libs.dart`
+
+### API & Data
+- All API communication happens in repositories, never in providers
+- Repositories catch `DioException`, extract error messages, and throw `Exception()`
+- API responses are transformed in repositories before reaching providers
+- Use `fromJson()` factory constructors for model deserialization
+
+### Navigation & Deep Linking
+- Deep links are parsed in `main.dart` and routed via `core/router.dart`
+- Path format: `/{host}{path}?{query}` (e.g., `/invite/accept?token=123`)
+- Navigation guards in router redirect based on auth state and onboarding progress
+
+### Null Safety & Collections
+- Avoid null-safety issues by using `.isEmpty` instead of `!= null` on collections
+- Use the spread operator for conditional list items: `if (condition) item`
+
+### Testing
 - Tests use standard `flutter_test` in `test/` directory
-- Deep links are handled in `main.dart` and routes in `core/router.dart`
-- Avoid null-safety issues by using `.isEmpty` instead of checking `!= null` on collections
+- Test features in isolation with mock providers where needed
