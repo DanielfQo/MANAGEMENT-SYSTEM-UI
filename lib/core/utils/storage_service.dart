@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class StorageService {
   static String? _token;
   static String? _refreshToken;
+  static int? _lastTiendaId;
 
   static Future<void> saveToken(String token) async {
     _token = token;
@@ -14,6 +15,10 @@ class StorageService {
     if (_token != null) return _token;
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('token');
+    return _token;
+  }
+
+  static String? getTokenSync() {
     return _token;
   }
 
@@ -39,13 +44,19 @@ class StorageService {
   }
 
   static Future<void> setLastTiendaId(int tiendaId) async {
+    _lastTiendaId = tiendaId;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('last_tienda_id', tiendaId);
   }
 
   static Future<int?> getLastTiendaId() async {
+    if (_lastTiendaId != null) return _lastTiendaId;
     final prefs = await SharedPreferences.getInstance();
-    final tiendaId = prefs.getInt('last_tienda_id');
-    return tiendaId;
+    _lastTiendaId = prefs.getInt('last_tienda_id');
+    return _lastTiendaId;
+  }
+
+  static int? getLastTiendaIdSync() {
+    return _lastTiendaId;
   }
 }

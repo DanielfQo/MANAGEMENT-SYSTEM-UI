@@ -1,7 +1,4 @@
-import 'package:flutter/material.dart';
 import 'package:management_system_ui/core/common_libs.dart';
-import 'package:management_system_ui/core/theme/app_colors.dart';
-import 'package:management_system_ui/core/widgets/custom_app_bar.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 
 class HomePage extends ConsumerWidget {

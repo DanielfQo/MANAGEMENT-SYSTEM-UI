@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_page.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'package:management_system_ui/features/auth/tienda_selection_page.dart';
-import 'package:management_system_ui/features/lote/lote_page.dart';
+import 'package:management_system_ui/features/lote/lote_form_page.dart';
+import 'package:management_system_ui/features/lote/lote_detail_page.dart';
+import 'package:management_system_ui/features/lote/productos_page.dart';
 import 'package:management_system_ui/features/venta/venta_page.dart';
 import 'package:management_system_ui/features/home/home_page.dart';
 import 'package:management_system_ui/features/lote/lote_list_page.dart';
@@ -150,12 +151,23 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const InventarioPage(),
           ),
           GoRoute(
-            path: '/lotes/stock',
+            path: '/lotes/lista',
             builder: (context, state) => const LoteListPage(),
           ),
           GoRoute(
             path: '/lotes/crear',
-            builder: (context, state) => const LotePage(),
+            builder: (context, state) => const LoteFormPage(),
+          ),
+          GoRoute(
+            path: '/lotes/:id',
+            builder: (context, state) {
+              final id = int.parse(state.pathParameters['id']!);
+              return LoteDetailPage(id: id);
+            },
+          ),
+          GoRoute(
+            path: '/productos',
+            builder: (context, state) => const ProductosPage(),
           ),
           GoRoute(
             path: '/ventas',
@@ -213,25 +225,24 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final onboardingPaths = ['/login', '/profile/complete', '/setup'];
       if (onboardingPaths.contains(currentPath)) {
-        if (tiendas.length > 1 && authState.selectedTiendaId == null) {
-          return '/select-store';
-        }
-        return '/home';
-      }
-
-      final hasStoreSelected = authState.selectedTiendaId != null;
-      if (!hasStoreSelected) {
-        if (tiendas.length > 1) {
-          return currentPath == '/select-store' ? null : '/select-store';
-        }
-        if (tiendas.length == 1) {
+        if (tiendas.isNotEmpty && authState.selectedTiendaId == null) {
           Future.microtask(() async {
             await ref
                 .read(authProvider.notifier)
                 .selectTienda(tiendas.first.tiendaId);
           });
-          return null;
         }
+        return '/home';
+      }
+
+      final hasStoreSelected = authState.selectedTiendaId != null;
+      if (!hasStoreSelected && tiendas.isNotEmpty) {
+        Future.microtask(() async {
+          await ref
+              .read(authProvider.notifier)
+              .selectTienda(tiendas.first.tiendaId);
+        });
+        return null;
       }
 
       if (hasStoreSelected && currentPath == '/select-store') {

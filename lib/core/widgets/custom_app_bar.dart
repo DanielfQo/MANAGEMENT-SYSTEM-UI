@@ -1,8 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:management_system_ui/core/common_libs.dart';
-import 'package:management_system_ui/core/theme/app_colors.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
-import 'package:management_system_ui/features/tienda/tienda_provider.dart';
 import 'package:management_system_ui/features/tienda/tienda_switcher_sheet.dart';
 
 /// AppBar unificado y consistente para todas las páginas
@@ -109,14 +106,17 @@ class _TiendaSelectorDropdown extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectedId = ref.watch(authProvider).selectedTiendaId;
-    final tiendaState = ref.watch(tiendaProvider);
-    final tiendas = tiendaState.tiendas;
+    final authState = ref.watch(authProvider);
+    final selectedId = authState.selectedTiendaId;
+    final userTiendas = authState.userMe?.tiendas ?? [];
 
-    final tiendaActual = tiendas.isEmpty
+    final tiendaNombre = userTiendas.isEmpty
         ? null
-        : tiendas.where((t) => t.id == selectedId).firstOrNull ??
-            tiendas.first;
+        : userTiendas
+                .where((t) => t.tiendaId == selectedId)
+                .firstOrNull
+                ?.tiendaNombre ??
+            userTiendas.first.tiendaNombre;
 
     return Material(
       color: Colors.transparent,
@@ -154,7 +154,7 @@ class _TiendaSelectorDropdown extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      tiendaActual?.nombreSede ?? 'Seleccionar tienda',
+                      tiendaNombre ?? 'Sin tienda',
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,

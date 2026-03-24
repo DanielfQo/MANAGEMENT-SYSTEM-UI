@@ -10,6 +10,9 @@ final dioProvider = Provider<Dio>((ref) {
     BaseOptions(
       baseUrl: AppConstants.apiBaseUrl,
       connectTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 10),
+      sendTimeout: const Duration(seconds: 10),
+      validateStatus: (status) => status != null && status < 500,
     ),
   );
 

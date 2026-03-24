@@ -18,8 +18,14 @@ class TiendaRepository {
       return (response.data as List)
           .map((e) => StoreModel.fromJson(e))
           .toList();
-    } on DioException catch (_) {
-      throw Exception('Error al obtener las tiendas');
+    } on DioException catch (e) {
+      String message = 'Error al obtener las tiendas';
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout) {
+        message = 'Conexión lenta. Intenta de nuevo';
+      }
+      throw Exception(message);
     }
   }
 

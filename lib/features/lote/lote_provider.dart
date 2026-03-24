@@ -1,87 +1,224 @@
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'models/lote_model.dart';
-import 'lote_repository.dart';
 import 'models/lote_response_model.dart';
+import 'models/producto_model.dart';
+import 'models/stock_model.dart';
+import 'lote_repository.dart';
 
-final loteProvider =
-    NotifierProvider<LoteNotifier, LoteModel?>(LoteNotifier.new);
-  
-final productosProvider = FutureProvider<List<ProductModel>>((ref) async {
+// Main notifier for inventory state
+final inventarioProvider =
+    NotifierProvider<InventarioNotifier, InventarioState>(
+  InventarioNotifier.new,
+);
+
+// Family providers for detail views
+final loteDetalleProvider =
+    FutureProvider.family<LoteResponse, int>((ref, id) async {
   final repository = ref.watch(loteRepositoryProvider);
-  return repository.getProductos();
+  return repository.getLoteDetalle(id);
 });
 
-final lotesProvider = FutureProvider<List<LoteResponse>>((ref) async {
-  final tiendaId = ref.watch(authProvider).selectedTiendaId;
-
-  if (tiendaId == null) return [];
-
+final productoDetalleProvider =
+    FutureProvider.family<ProductoModel, int>((ref, id) async {
   final repository = ref.watch(loteRepositoryProvider);
-  return repository.getLotes(tiendaId);
+  return repository.getProductoDetalle(id);
 });
 
-class LoteNotifier extends Notifier<LoteModel?> {
+// State class
+class InventarioState {
+  final bool isLoading;
+  final bool isSaving;
+  final String? errorMessage;
+  final String? successMessage;
+  final List<LoteResponse> lotes;
+  final List<StockModel> stock;
+  final List<ProductoModel> productos;
 
+  InventarioState({
+    this.isLoading = false,
+    this.isSaving = false,
+    this.errorMessage,
+    this.successMessage,
+    this.lotes = const [],
+    this.stock = const [],
+    this.productos = const [],
+  });
+
+  InventarioState copyWith({
+    bool? isLoading,
+    bool? isSaving,
+    String? errorMessage,
+    String? successMessage,
+    List<LoteResponse>? lotes,
+    List<StockModel>? stock,
+    List<ProductoModel>? productos,
+  }) {
+    return InventarioState(
+      isLoading: isLoading ?? this.isLoading,
+      isSaving: isSaving ?? this.isSaving,
+      errorMessage: errorMessage,
+      successMessage: successMessage,
+      lotes: lotes ?? this.lotes,
+      stock: stock ?? this.stock,
+      productos: productos ?? this.productos,
+    );
+  }
+}
+
+// Notifier class
+class InventarioNotifier extends Notifier<InventarioState> {
   late final LoteRepository _repository;
 
   @override
-  LoteModel? build() {
+  InventarioState build() {
     _repository = ref.watch(loteRepositoryProvider);
-    return null;
+    return InventarioState();
   }
 
-  void initLote({
-    required String fechaLlegada,
-    required String costoOperacion,
-    required String costoTransporte,
-  }) {
-    final tiendaId =
-        ref.read(authProvider).selectedTiendaId;
+  /// Cargar lotes de la tienda seleccionada
+  Future<void> cargarLotes() async {
+    final tiendaId = ref.read(authProvider).selectedTiendaId;
+    if (tiendaId == null) {
+      state = state.copyWith(
+        lotes: [],
+        errorMessage: 'No hay tienda seleccionada',
+      );
+      return;
+    }
 
-    if (tiendaId == null) return;
-
-    state = LoteModel(
-      tienda: tiendaId,
-      fechaLlegada: fechaLlegada,
-      costoOperacion: costoOperacion,
-      costoTransporte: costoTransporte,
-      productos: [],
-    );
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final lotes = await _repository.getLotes(tiendaId);
+      state = state.copyWith(
+        isLoading: false,
+        lotes: lotes,
+        errorMessage: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
   }
 
-  void addProducto(LoteProducto producto) {
-    if (state == null) return;
+  /// Cargar stock agregado de la tienda seleccionada
+  Future<void> cargarStock() async {
+    final tiendaId = ref.read(authProvider).selectedTiendaId;
+    if (tiendaId == null) {
+      state = state.copyWith(
+        stock: [],
+        errorMessage: 'No hay tienda seleccionada',
+      );
+      return;
+    }
 
-    state = LoteModel(
-      tienda: state!.tienda,
-      fechaLlegada: state!.fechaLlegada,
-      costoOperacion: state!.costoOperacion,
-      costoTransporte: state!.costoTransporte,
-      productos: [...state!.productos, producto],
-    );
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final stock = await _repository.getStock(tiendaId);
+      state = state.copyWith(
+        isLoading: false,
+        stock: stock,
+        errorMessage: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
   }
 
-  void removeProducto(LoteProducto producto) {
-    if (state == null) return;
-
-    state = LoteModel(
-      tienda: state!.tienda,
-      fechaLlegada: state!.fechaLlegada,
-      costoOperacion: state!.costoOperacion,
-      costoTransporte: state!.costoTransporte,
-      productos: state!.productos.where((p) => p != producto).toList(),
-    );
+  /// Cargar catálogo de productos
+  Future<void> cargarProductos() async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final productos = await _repository.getProductos();
+      state = state.copyWith(
+        isLoading: false,
+        productos: productos,
+        errorMessage: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
   }
 
-  Future<void> guardarLote() async {
-    if (state == null) return;
-
-    await _repository.crearLote(state!);
-    state = null;
+  /// Crear un nuevo lote
+  Future<void> crearLote(LoteCreateModel lote) async {
+    state = state.copyWith(isSaving: true, errorMessage: null);
+    try {
+      await _repository.crearLote(lote);
+      state = state.copyWith(
+        isSaving: false,
+        successMessage: 'Lote creado correctamente',
+        errorMessage: null,
+      );
+      // Recargar lotes para reflejar el cambio
+      await cargarLotes();
+    } catch (e) {
+      state = state.copyWith(
+        isSaving: false,
+        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
   }
 
-  Future<List<ProductModel>> cargarProductos() async {
-    return await _repository.getProductos();
+  /// Desactivar un lote
+  Future<void> desactivarLote(int id) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _repository.desactivarLote(id);
+      // Remover de la lista local
+      state = state.copyWith(
+        isLoading: false,
+        lotes: state.lotes.where((l) => l.id != id).toList(),
+        successMessage: 'Lote desactivado correctamente',
+        errorMessage: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
+  /// Actualizar un producto
+  Future<void> actualizarProducto(
+    int id, {
+    String? tipoIgv,
+    bool? isActive,
+    dynamic imagenFile,
+  }) async {
+    state = state.copyWith(isSaving: true, errorMessage: null);
+    try {
+      await _repository.actualizarProducto(
+        id,
+        tipoIgv: tipoIgv,
+        isActive: isActive,
+        imagenFile: imagenFile,
+      );
+      // Recargar productos para reflejar el cambio
+      await cargarProductos();
+      state = state.copyWith(
+        isSaving: false,
+        successMessage: 'Producto actualizado correctamente',
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isSaving: false,
+        errorMessage: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
+  /// Limpiar mensajes de estado
+  void clearMessages() {
+    state = state.copyWith(errorMessage: null, successMessage: null);
   }
 }
