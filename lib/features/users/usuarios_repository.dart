@@ -19,12 +19,13 @@ class UsuariosRepository {
     String? rol,
   }) async {
     try {
+      final queryParameters = <String, dynamic>{};
+      if (tiendaId != null) queryParameters['tienda'] = tiendaId;
+      if (rol != null) queryParameters['rol'] = rol;
+
       final response = await _dio.get(
         'auth/usuario-tienda/',
-        queryParameters: {
-          'tienda': tiendaId,
-          'rol': rol,
-        },
+        queryParameters: queryParameters.isNotEmpty ? queryParameters : null,
       );
       return (response.data as List)
           .map((e) => UsuarioTiendaModel.fromJson(e))

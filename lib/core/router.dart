@@ -16,6 +16,9 @@ import 'package:management_system_ui/features/onboarding/profile_complete_page.d
 import 'package:management_system_ui/features/onboarding/setup_page.dart';
 import 'package:management_system_ui/features/users/usuarios_page.dart';
 import 'package:management_system_ui/features/asistencia/asistencia_page.dart';
+import 'package:management_system_ui/features/tienda/tiendas_page.dart';
+import 'package:management_system_ui/features/tienda/tienda_form_page.dart';
+import 'package:management_system_ui/core/models/store_model.dart';
 
 class AuthStateNotifier extends ChangeNotifier {
   final Ref _ref;
@@ -162,6 +165,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/ventas/historial',
             builder: (context, state) => const VentaHistorialPage(),
           ),
+          GoRoute(
+            path: '/tiendas',
+            builder: (context, state) => const TiendasPage(),
+          ),
+          GoRoute(
+            path: '/tiendas/form',
+            builder: (context, state) {
+              final tienda = state.extra as StoreModel?;
+              return TiendaFormPage(tiendaExistente: tienda);
+            },
+          ),
         ],
       ),
       GoRoute(
@@ -211,8 +225,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           return currentPath == '/select-store' ? null : '/select-store';
         }
         if (tiendas.length == 1) {
-          Future.microtask(() {
-            ref
+          Future.microtask(() async {
+            await ref
                 .read(authProvider.notifier)
                 .selectTienda(tiendas.first.tiendaId);
           });

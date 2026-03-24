@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:management_system_ui/core/common_libs.dart';
+import 'package:management_system_ui/core/theme/app_colors.dart';
+import 'package:management_system_ui/core/widgets/custom_app_bar.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 
 class HomePage extends ConsumerWidget {
@@ -19,40 +21,12 @@ class HomePage extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
-              /// HEADER
-              Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Color(0xff1f2a7c),
-                    child: Icon(Icons.store, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Tienda #1234",
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16),
-                        ),
-                        Text(
-                          "Sucursal Centro",
-                          style: TextStyle(color: Colors.grey),
-                        )
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.notifications_none)),
-                  IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.person_outline)),
-                ],
+              /// HEADER - CustomAppBar Unificado
+              CustomAppBar(
+                title: 'Inicio',
+                subtitle: 'Panel de control',
+                icon: Icons.home,
+                isTiendaTitle: esDueno,
               ),
 
               const SizedBox(height: 20),
@@ -81,7 +55,7 @@ class HomePage extends ConsumerWidget {
                     context,
                     icon: Icons.shopping_cart,
                     label: "Nueva Venta",
-                    color: const Color(0xff1f2a7c),
+                    color: AppColors.primary,
                     onTap: () => context.go('/ventas'),
                   ),
                   const SizedBox(width: 12),
@@ -99,7 +73,7 @@ class HomePage extends ConsumerWidget {
                       context,
                       icon: Icons.person_add_alt_1,
                       label: "Invitar",
-                      color: const Color(0xff1f2a7c),
+                      color: AppColors.primary,
                       onTap: () => context.go('/invitation/new'),
                     ),
                   ],

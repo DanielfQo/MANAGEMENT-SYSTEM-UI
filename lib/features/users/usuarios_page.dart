@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:management_system_ui/core/common_libs.dart';
+import 'package:management_system_ui/core/widgets/custom_app_bar.dart';
 import 'package:management_system_ui/features/invitation/invitation_provider.dart';
-import 'package:management_system_ui/features/invitation/models/store_model.dart';
+import 'package:management_system_ui/core/models/store_model.dart';
 import 'package:management_system_ui/core/widgets/invitation_link_sheet.dart';
 import 'package:management_system_ui/core/widgets/empty_state.dart';
 import 'package:management_system_ui/core/widgets/error_state.dart';
 import 'package:management_system_ui/core/widgets/status_badge.dart';
-import 'package:management_system_ui/core/widgets/dropdown_skeleton.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'usuarios_provider.dart';
 import 'models/usuario_tienda_model.dart';
@@ -19,7 +19,6 @@ class UsuariosPage extends ConsumerStatefulWidget {
 }
 
 class _UsuariosPageState extends ConsumerState<UsuariosPage> {
-  StoreModel? _tiendaSeleccionada;
   String? _rolSeleccionado;
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -291,12 +290,7 @@ class _UsuariosPageState extends ConsumerState<UsuariosPage> {
         ? ref.watch(tiendasProvider)
         : AsyncValue.data(
             (userMe?.tiendas ?? [])
-                .map((t) => StoreModel(
-                      id: t.tiendaId,
-                      nombreSede: t.tiendaNombre,
-                      direccion: '',
-                      ubigeo: '',
-                    ))
+                .map((t) => StoreModel.fromUserTienda(t))
                 .toList(),
           );
 
@@ -349,43 +343,12 @@ class _UsuariosPageState extends ConsumerState<UsuariosPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Color(0xFF1F2A7C),
-                    child: Icon(Icons.people, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Mis Usuarios',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18)),
-                        Text('Gestiona a tu equipo',
-                            style: TextStyle(
-                                color: Colors.grey, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => ref
-                        .read(usuariosProvider.notifier)
-                        .cargarUsuarios(
-                          tiendaId: _tiendaSeleccionada?.id,
-                          rol: _rolSeleccionado,
-                        ),
-                    icon: const Icon(Icons.refresh,
-                        color: Color(0xFF2F3A8F)),
-                  ),
-                ],
-              ),
+            // ── Header - CustomAppBar Unificado ──────────────────────
+            CustomAppBar(
+              title: 'Mis Usuarios',
+              subtitle: 'Gestiona a tu equipo',
+              icon: Icons.people,
+              isTiendaTitle: esDueno,
             ),
 
             const SizedBox(height: 12),
@@ -393,58 +356,22 @@ class _UsuariosPageState extends ConsumerState<UsuariosPage> {
             // ── Filtros ───────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: tiendasAsync.when(
-                loading: () =>
-                    const DropdownSkeleton(label: 'Cargando tiendas...'),
-                error: (_, _) => const DropdownSkeleton(
-                    label: 'Error al cargar tiendas'),
-                data: (tiendas) => Row(
-                  children: [
-                    Expanded(
-                      child: _buildDropdownFiltro<StoreModel?>(
-                        icon: Icons.store_outlined,
-                        hint: 'Todas las tiendas',
-                        value: _tiendaSeleccionada,
-                        items: [
-                          const DropdownMenuItem<StoreModel?>(
-                            value: null,
-                            child: Text('Todas las tiendas'),
-                          ),
-                          ...tiendas.map((t) => DropdownMenuItem(
-                                value: t,
-                                child: Text(t.nombreSede),
-                              )),
-                        ],
-                        onChanged: (tienda) {
-                          setState(() => _tiendaSeleccionada = tienda);
-                          ref
-                              .read(usuariosProvider.notifier)
-                              .seleccionarTienda(tienda?.id);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildDropdownFiltro<String?>(
-                        icon: Icons.badge_outlined,
-                        hint: 'Todos los roles',
-                        value: _rolSeleccionado,
-                        items: _roles
-                            .map((r) => DropdownMenuItem<String?>(
-                                  value: r['value'],
-                                  child: Text(r['label'] ?? ''),
-                                ))
-                            .toList(),
-                        onChanged: (rol) {
-                          setState(() => _rolSeleccionado = rol);
-                          ref
-                              .read(usuariosProvider.notifier)
-                              .seleccionarRol(rol);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+              child: _buildDropdownFiltro<String?>(
+                icon: Icons.badge_outlined,
+                hint: 'Todos los roles',
+                value: _rolSeleccionado,
+                items: _roles
+                    .map((r) => DropdownMenuItem<String?>(
+                          value: r['value'],
+                          child: Text(r['label'] ?? ''),
+                        ))
+                    .toList(),
+                onChanged: (rol) {
+                  setState(() => _rolSeleccionado = rol);
+                  ref
+                      .read(usuariosProvider.notifier)
+                      .seleccionarRol(rol);
+                },
               ),
             ),
 
@@ -496,8 +423,7 @@ class _UsuariosPageState extends ConsumerState<UsuariosPage> {
                           mensaje: state.errorMessage!,
                           onRetry: () => ref
                               .read(usuariosProvider.notifier)
-                              .cargarUsuarios(
-                                  tiendaId: _tiendaSeleccionada?.id),
+                              .cargarUsuarios(),
                         )
                       : _filtrarUsuarios(state.usuarios).isEmpty
                           ? const EmptyState(
@@ -517,8 +443,6 @@ class _UsuariosPageState extends ConsumerState<UsuariosPage> {
                                   onRefresh: () => ref
                                       .read(usuariosProvider.notifier)
                                       .cargarUsuarios(
-                                        tiendaId:
-                                            _tiendaSeleccionada?.id,
                                         rol: _rolSeleccionado,
                                       ),
                                   child: usuarios.isEmpty

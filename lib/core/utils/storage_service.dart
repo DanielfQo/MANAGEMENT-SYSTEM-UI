@@ -37,4 +37,15 @@ class StorageService {
     await prefs.remove('token');
     await prefs.remove('refresh_token');
   }
+
+  static Future<void> setLastTiendaId(int tiendaId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('last_tienda_id', tiendaId);
+  }
+
+  static Future<int?> getLastTiendaId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final tiendaId = prefs.getInt('last_tienda_id');
+    return tiendaId;
+  }
 }

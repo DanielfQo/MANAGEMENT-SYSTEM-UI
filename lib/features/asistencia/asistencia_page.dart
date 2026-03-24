@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:management_system_ui/core/common_libs.dart';
+import 'package:management_system_ui/core/widgets/custom_app_bar.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'package:management_system_ui/features/invitation/invitation_provider.dart';
-import 'package:management_system_ui/features/invitation/models/store_model.dart';
 import 'package:management_system_ui/core/widgets/empty_state.dart';
-import 'package:management_system_ui/core/widgets/dropdown_skeleton.dart';
 import 'asistencia_provider.dart';
 import 'models/asistencia_resumen_model.dart';
 
@@ -17,7 +16,6 @@ class AsistenciaPage extends ConsumerStatefulWidget {
 
 class _AsistenciaPageState extends ConsumerState<AsistenciaPage>
     with SingleTickerProviderStateMixin {
-  StoreModel? _tiendaSeleccionada;
   late TabController _tabController;
 
   static const _meses = [
@@ -132,18 +130,6 @@ class _AsistenciaPageState extends ConsumerState<AsistenciaPage>
     final state = ref.watch(asistenciaProvider);
     final userMe = ref.watch(authProvider).userMe;
     final esDueno = userMe?.isDueno ?? false;
-    final tiendasAsync = esDueno
-        ? ref.watch(tiendasProvider)
-        : AsyncValue.data(
-            (userMe?.tiendas ?? [])
-                .map((t) => StoreModel(
-                      id: t.tiendaId,
-                      nombreSede: t.tiendaNombre,
-                      direccion: '',
-                      ubigeo: '',
-                    ))
-                .toList(),
-          );
 
     final now = DateTime.now();
     final fechaDisplay =
@@ -188,111 +174,15 @@ class _AsistenciaPageState extends ConsumerState<AsistenciaPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Color(0xFF1F2A7C),
-                    child: Icon(Icons.access_time, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Asistencia',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18)),
-                        Text('Hoy $fechaDisplay',
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      if (_tabController.index == 0) {
-                        ref
-                            .read(asistenciaProvider.notifier)
-                            .cargarAsistenciasHoy(
-                                tiendaId: _tiendaSeleccionada?.id);
-                      } else {
-                        ref
-                            .read(asistenciaProvider.notifier)
-                            .cargarResumen();
-                      }
-                    },
-                    icon: const Icon(Icons.refresh,
-                        color: Color(0xFF2F3A8F)),
-                  ),
-                ],
-              ),
+            // ── Header - CustomAppBar Unificado ──────────────────────
+            CustomAppBar(
+              title: 'Asistencia',
+              subtitle: 'Control de entrada/salida • Hoy $fechaDisplay',
+              icon: Icons.access_time,
+              isTiendaTitle: esDueno,
             ),
 
             const SizedBox(height: 12),
-
-            // ── Filtro de tienda (solo DUEÑO) ─────────────────────────
-            if (esDueno)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: tiendasAsync.when(
-                  loading: () => const DropdownSkeleton(
-                      label: 'Cargando tiendas...'),
-                  error: (_, _) => const DropdownSkeleton(
-                      label: 'Error al cargar tiendas'),
-                  data: (tiendas) => Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 8,
-                        )
-                      ],
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<StoreModel?>(
-                        value: _tiendaSeleccionada,
-                        isExpanded: true,
-                        hint: const Row(
-                          children: [
-                            Icon(Icons.store_outlined,
-                                color: Colors.grey, size: 20),
-                            SizedBox(width: 10),
-                            Text('Todas las tiendas',
-                                style: TextStyle(color: Colors.grey)),
-                          ],
-                        ),
-                        items: [
-                          const DropdownMenuItem<StoreModel?>(
-                            value: null,
-                            child: Text('Todas las tiendas'),
-                          ),
-                          ...tiendas.map((t) => DropdownMenuItem(
-                                value: t,
-                                child: Text(t.nombreSede),
-                              )),
-                        ],
-                        onChanged: (tienda) {
-                          setState(() => _tiendaSeleccionada = tienda);
-                          ref
-                              .read(asistenciaProvider.notifier)
-                              .seleccionarTienda(tienda?.id);
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-            if (esDueno) const SizedBox(height: 12),
 
             // ── TabBar ────────────────────────────────────────────────
             Padding(
@@ -337,8 +227,7 @@ class _AsistenciaPageState extends ConsumerState<AsistenciaPage>
                               color: const Color(0xFF2F3A8F),
                               onRefresh: () => ref
                                   .read(asistenciaProvider.notifier)
-                                  .cargarAsistenciasHoy(
-                                      tiendaId: _tiendaSeleccionada?.id),
+                                  .cargarAsistenciasHoy(),
                               child: ListView.separated(
                                 padding: const EdgeInsets.fromLTRB(
                                     16, 0, 16, 16),
@@ -447,6 +336,25 @@ class _AsistenciaPageState extends ConsumerState<AsistenciaPage>
                     },
                   ),
                 ),
+              ),
+
+              const SizedBox(width: 8),
+
+              // Botón refrescar
+              IconButton(
+                onPressed: state.isLoadingResumen
+                    ? null
+                    : () {
+                        ref
+                            .read(asistenciaProvider.notifier)
+                            .cargarResumen(
+                              mes: state.mesResumen,
+                              anio: state.anioResumen,
+                            );
+                      },
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refrescar resumen',
+                splashRadius: 24,
               ),
             ],
           ),

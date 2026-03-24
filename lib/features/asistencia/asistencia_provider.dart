@@ -93,7 +93,17 @@ class AsistenciaNotifier extends Notifier<AsistenciaState> {
     final now = DateTime.now();
     final tiendaId = ref.read(authProvider).selectedTiendaId;
 
-    Future.microtask(() => cargarAsistenciasHoy(tiendaId: tiendaId));
+    // Escuchar cambios en selectedTiendaId para recargar asistencias
+    ref.listen(
+      authProvider.select((auth) => auth.selectedTiendaId),
+      (previous, next) {
+        if (previous != null && next != previous) {
+          cargarAsistenciasHoy();
+        }
+      },
+    );
+
+    Future.microtask(() => cargarAsistenciasHoy());
 
     return AsistenciaState(
       tiendaSeleccionadaId: tiendaId,
@@ -107,7 +117,8 @@ class AsistenciaNotifier extends Notifier<AsistenciaState> {
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
-  Future<void> cargarAsistenciasHoy({int? tiendaId}) async {
+  Future<void> cargarAsistenciasHoy() async {
+    final tiendaId = ref.read(authProvider).selectedTiendaId;
     state = state.copyWith(
       isLoading: true,
       clearError: true,
@@ -163,8 +174,7 @@ class AsistenciaNotifier extends Notifier<AsistenciaState> {
   }
 
   void seleccionarTienda(int? tiendaId) {
-    cargarAsistenciasHoy(tiendaId: tiendaId);
-    cargarResumen(tiendaId: tiendaId);
+    cargarAsistenciasHoy();
   }
 
   Future<void> marcarEntrada(int usuarioTiendaId) async {
@@ -174,7 +184,7 @@ class AsistenciaNotifier extends Notifier<AsistenciaState> {
       state = state.copyWith(
           isMarking: false, successMessage: 'Entrada registrada');
       try {
-        await cargarAsistenciasHoy(tiendaId: state.tiendaSeleccionadaId);
+        await cargarAsistenciasHoy();
       } catch (_) {}
     } catch (e) {
       state = state.copyWith(
@@ -195,7 +205,7 @@ class AsistenciaNotifier extends Notifier<AsistenciaState> {
       state = state.copyWith(
           isMarking: false, successMessage: 'Salida registrada');
       try {
-        await cargarAsistenciasHoy(tiendaId: state.tiendaSeleccionadaId);
+        await cargarAsistenciasHoy();
       } catch (_) {}
     } catch (e) {
       state = state.copyWith(
