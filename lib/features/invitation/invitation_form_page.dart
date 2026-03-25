@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/core/widgets/invitation_link_sheet.dart';
 import 'invitation_provider.dart';
-import 'models/store_model.dart';
+import 'package:management_system_ui/core/models/store_model.dart';
 import 'models/role_model.dart';
 
 class InvitationFormPage extends ConsumerStatefulWidget {

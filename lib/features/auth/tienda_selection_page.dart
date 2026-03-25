@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'auth_provider.dart';
 
 class TiendaSelectionPage extends ConsumerWidget {
@@ -22,9 +23,11 @@ class TiendaSelectionPage extends ConsumerWidget {
           return ListTile(
             title: Text(tienda.tiendaNombre),
             subtitle: Text(authState.userMe?.rol ?? ''),
-            onTap: () {
-              notifier.selectTienda(tienda.tiendaId);
-              Navigator.pushReplacementNamed(context, '/inventory');
+            onTap: () async {
+              await notifier.selectTienda(tienda.tiendaId);
+              if (context.mounted) {
+                context.go('/home');
+              }
             },
           );
         },

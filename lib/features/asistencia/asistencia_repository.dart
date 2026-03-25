@@ -19,12 +19,13 @@ class AsistenciaRepository {
     String? fecha,
   }) async {
     try {
+      final queryParameters = <String, dynamic>{};
+      if (usuarioTienda != null) queryParameters['usuario_tienda'] = usuarioTienda;
+      if (fecha != null) queryParameters['fecha'] = fecha;
+
       final response = await _dio.get(
         'auth/asistencia/',
-        queryParameters: {
-          'usuario_tienda': usuarioTienda,
-          'fecha': fecha,
-        },
+        queryParameters: queryParameters.isNotEmpty ? queryParameters : null,
       );
       return (response.data as List)
           .map((e) => AsistenciaModel.fromJson(e))
@@ -42,13 +43,15 @@ class AsistenciaRepository {
     int? usuarioTienda,
   }) async {
     try {
+      final queryParameters = <String, dynamic>{
+        'mes': mes,
+        'anio': anio,
+      };
+      if (usuarioTienda != null) queryParameters['usuario_tienda'] = usuarioTienda;
+
       final response = await _dio.get(
         'auth/asistencia/resumen/',
-        queryParameters: {
-          'mes': mes,
-          'anio': anio,
-          'usuario_tienda': usuarioTienda,
-        },
+        queryParameters: queryParameters,
       );
       return (response.data as List)
           .map((e) => AsistenciaResumenModel.fromJson(e))

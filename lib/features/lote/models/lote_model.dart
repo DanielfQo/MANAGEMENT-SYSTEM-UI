@@ -1,11 +1,11 @@
-class LoteModel {
+class LoteCreateModel {
   final int tienda;
   final String fechaLlegada;
   final String costoOperacion;
   final String costoTransporte;
-  final List<LoteProducto> productos;
+  final List<LoteProductoInput> productos;
 
-  LoteModel({
+  LoteCreateModel({
     required this.tienda,
     required this.fechaLlegada,
     required this.costoOperacion,
@@ -24,46 +24,37 @@ class LoteModel {
   }
 }
 
-class ProductModel {
-  final int id;
-  final String nombre;
-  final bool isActive;
-
-  ProductModel({
-    required this.id,
-    required this.nombre,
-    required this.isActive,
-  });
-
-  factory ProductModel.fromJson(Map<String, dynamic> json) {
-    return ProductModel(
-      id: json['id'],
-      nombre: json['nombre'],
-      isActive: json['is_active'],
-    );
-  }
-}
-
-class LoteProducto {
+class LoteProductoInput {
   final int? productoId; // Para producto existente
   final String? nombre;  // Para producto nuevo
-  final int cantidad;
-  final String precioCompra;
-  final String precioVentaBase;
+  final String unidadMedida; // NIU, KGM, MTR, LTR
+  final bool conFactura;
+  final String cantidad; // Decimal string "200.000"
+  final String cantidadAveriada; // Decimal string, defaults to "0.000"
+  final String costoTotal;
+  final String? precioVentaBase; // Nullable - solo para dueño
+  final String precioVentaMercado;
 
-  LoteProducto({
+  LoteProductoInput({
     this.productoId,
     this.nombre,
+    required this.unidadMedida,
+    required this.conFactura,
     required this.cantidad,
-    required this.precioCompra,
-    required this.precioVentaBase,
+    required this.cantidadAveriada,
+    required this.costoTotal,
+    this.precioVentaBase,
+    required this.precioVentaMercado,
   });
 
   Map<String, dynamic> toJson() {
     final data = {
+      "unidad_medida": unidadMedida,
+      "con_factura": conFactura,
       "cantidad": cantidad,
-      "precio_compra": precioCompra,
-      "precio_venta_base": precioVentaBase,
+      "cantidad_averiada": cantidadAveriada,
+      "costo_total": costoTotal,
+      "precio_venta_mercado": precioVentaMercado,
     };
 
     if (productoId != null) {
@@ -74,6 +65,21 @@ class LoteProducto {
       data["nombre"] = nombre!;
     }
 
+    if (precioVentaBase != null) {
+      data["precio_venta_base"] = precioVentaBase!;
+    }
+
     return data;
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoteProductoInput &&
+          runtimeType == other.runtimeType &&
+          productoId == other.productoId &&
+          nombre == other.nombre;
+
+  @override
+  int get hashCode => productoId.hashCode ^ nombre.hashCode;
 }

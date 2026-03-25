@@ -59,15 +59,19 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
-      
+
       final authResponse = await _repository.login(username, password);
 
       final userData = await _repository.getMe();
 
       int? tiendaActivac;
 
-      if (userData.tiendas.length == 1) {
-        tiendaActivac = userData.tiendas.first.tiendaId;
+      if (userData.tiendas.isNotEmpty) {
+        // Intentar cargar la última tienda usada
+        final lastTiendaId = await StorageService.getLastTiendaId();
+        final tiendaExiste = userData.tiendas.any((t) => t.tiendaId == lastTiendaId);
+
+        tiendaActivac = tiendaExiste ? lastTiendaId : userData.tiendas.first.tiendaId;
       }
 
       state = state.copyWith(
@@ -89,7 +93,8 @@ class AuthNotifier extends Notifier<AuthState> {
     state = const AuthState();
   }
 
-  void selectTienda(int tiendaId) {
+  Future<void> selectTienda(int tiendaId) async {
+    await StorageService.setLastTiendaId(tiendaId);
     state = state.copyWith(selectedTiendaId: tiendaId);
   }
 

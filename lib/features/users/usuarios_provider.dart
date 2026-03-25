@@ -59,11 +59,23 @@ class UsuariosNotifier extends Notifier<UsuariosState> {
   UsuariosState build() {
     _repository = ref.watch(usuariosRepositoryProvider);
     final tiendaId = ref.read(authProvider).selectedTiendaId;
-    Future.microtask(() => cargarUsuarios(tiendaId: tiendaId));
+
+    // Escuchar cambios en selectedTiendaId para recargar usuarios
+    ref.listen(
+      authProvider.select((auth) => auth.selectedTiendaId),
+      (previous, next) {
+        if (previous != null && next != previous) {
+          cargarUsuarios();
+        }
+      },
+    );
+
+    Future.microtask(() => cargarUsuarios());
     return UsuariosState(tiendaSeleccionadaId: tiendaId);
   }
 
-  Future<void> cargarUsuarios({int? tiendaId, String? rol}) async {
+  Future<void> cargarUsuarios({String? rol}) async {
+    final tiendaId = ref.read(authProvider).selectedTiendaId;
     state = state.copyWith(
       isLoading: true,
       errorMessage: null,
@@ -83,17 +95,11 @@ class UsuariosNotifier extends Notifier<UsuariosState> {
     }
   }
 
-  void seleccionarTienda(int? tiendaId) {
-    cargarUsuarios(tiendaId: tiendaId, rol: state.rolSeleccionado);
-  }
-
   void seleccionarRol(String? rol) {
     state = rol == null
         ? state.copyWith(clearRol: true)
         : state.copyWith(rolSeleccionado: rol);
-    cargarUsuarios(
-        tiendaId: state.tiendaSeleccionadaId,
-        rol: rol);
+    cargarUsuarios(rol: rol);
   }
 
   Future<void> editarUsuario({

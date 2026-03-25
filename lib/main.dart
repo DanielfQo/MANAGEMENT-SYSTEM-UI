@@ -7,7 +7,6 @@ import 'core/router.dart';
 // import 'package:management_system_ui/core/common_libs.dart'; 
 
 void main() {
-
   WidgetsFlutterBinding.ensureInitialized();
 
   runApp(

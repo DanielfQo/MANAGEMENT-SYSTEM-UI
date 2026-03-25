@@ -1,6 +1,6 @@
 import 'package:management_system_ui/core/common_libs.dart';
 import 'invitation_repository.dart';
-import 'models/store_model.dart';
+import 'package:management_system_ui/core/models/store_model.dart';
 import 'models/role_model.dart';
 import 'models/invitation_response_model.dart';
 
