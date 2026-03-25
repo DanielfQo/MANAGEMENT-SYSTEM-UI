@@ -133,7 +133,7 @@ class _LotePageState extends ConsumerState<LotePage> {
               productosAsync.when(
                 data: (productosCatalogo) {
                   return DropdownButtonFormField<int>(
-                    value: _selectedProductoId,
+                    initialValue: _selectedProductoId,
                     decoration: const InputDecoration(
                       labelText: "Producto existente",
                       border: OutlineInputBorder(),
@@ -277,8 +277,9 @@ class _LotePageState extends ConsumerState<LotePage> {
 
             ElevatedButton(
               onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
                 await loteNotifier.guardarLote();
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(content: Text("Lote guardado correctamente")),
                 );
               },

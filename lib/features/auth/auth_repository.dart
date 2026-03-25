@@ -24,6 +24,9 @@ class AuthRepository {
         },
       );
 
+      await StorageService.saveToken(response.data['access']);
+      await StorageService.saveRefreshToken(response.data['refresh']);
+
       return AuthResponseModel.fromJson(response.data); 
     } catch (e) {
       throw Exception('Error al iniciar sesión');

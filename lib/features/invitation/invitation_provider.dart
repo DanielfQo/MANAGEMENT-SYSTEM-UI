@@ -3,7 +3,6 @@ import 'invitation_repository.dart';
 import 'models/store_model.dart';
 import 'models/role_model.dart';
 import 'models/invitation_response_model.dart';
-import 'package:management_system_ui/core/constants/constants.dart';
 
 final tiendasProvider = FutureProvider<List<StoreModel>>((ref) async {
   final repository = ref.watch(invitationRepositoryProvider);

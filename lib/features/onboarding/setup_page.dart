@@ -220,7 +220,7 @@ class _SetupPageState extends ConsumerState<SetupPage> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           )
@@ -380,7 +380,7 @@ class _SetupPageState extends ConsumerState<SetupPage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF2F3A8F).withOpacity(0.06),
+              color: const Color(0xFF2F3A8F).withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(

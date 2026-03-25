@@ -14,12 +14,16 @@ class UsuariosRepository {
   final Dio _dio;
   UsuariosRepository(this._dio);
 
-  Future<List<UsuarioTiendaModel>> getUsuarios({int? tiendaId}) async {
+  Future<List<UsuarioTiendaModel>> getUsuarios({
+    int? tiendaId,
+    String? rol,
+  }) async {
     try {
       final response = await _dio.get(
         'auth/usuario-tienda/',
         queryParameters: {
-          if (tiendaId != null) 'tienda': tiendaId,
+          'tienda': tiendaId,
+          'rol': rol,
         },
       );
       return (response.data as List)
@@ -29,6 +33,50 @@ class UsuariosRepository {
       final detail =
           e.response?.data['detail'] ?? 'Error al obtener usuarios';
       throw Exception(detail);
+    }
+  }
+
+  Future<UsuarioTiendaModel> editarUsuario({
+    required int id,
+    int? tiendaId,
+    String? rol,
+    String? salario,
+  }) async {
+    try {
+      await _dio.patch(
+        'auth/usuario-tienda/$id/',
+        data: {
+          'tienda': tiendaId,
+          'rol': rol,
+          'salario': salario,
+        },
+      );
+      final response = await _dio.get('auth/usuario-tienda/$id/');
+      return UsuarioTiendaModel.fromJson(response.data);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      String message = 'Error al editar el usuario';
+      if (data is Map) {
+        final values = data.values.first;
+        message = values is List ? values.first.toString() : values.toString();
+      }
+      throw Exception(message);
+    }
+  }
+
+  Future<UsuarioTiendaModel> toggleEstado(int id) async {
+    try {
+      await _dio.patch('auth/usuario-tienda/$id/estado/');
+      final response = await _dio.get('auth/usuario-tienda/$id/');
+      return UsuarioTiendaModel.fromJson(response.data);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      String message = 'Error al cambiar el estado del usuario';
+      if (data is Map) {
+        final values = data.values.first;
+        message = values is List ? values.first.toString() : values.toString();
+      }
+      throw Exception(message);
     }
   }
 

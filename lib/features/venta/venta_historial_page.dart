@@ -58,7 +58,7 @@ class VentaHistorialPage extends ConsumerWidget {
         },
         loading: () =>
             const Center(child: CircularProgressIndicator()),
-        error: (_, __) =>
+        error: (_, _) =>
             const Center(child: Text("Error cargando ventas")),
       ),
     );
@@ -126,7 +126,7 @@ class _VentaDetalleModal extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
