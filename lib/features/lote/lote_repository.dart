@@ -19,7 +19,17 @@ class LoteRepository {
     try {
       final response = await _dio.get('inventory/productos/');
 
-      return (response.data as List)
+      final data = response.data;
+      final List results;
+      if (data is Map && data.containsKey('results')) {
+        results = data['results'] as List;
+      } else if (data is List) {
+        results = data;
+      } else {
+        results = [];
+      }
+
+      return results
           .map((e) => ProductoModel.fromJson(e as Map<String, dynamic>))
           .toList();
     } on DioException catch (e) {
@@ -94,7 +104,17 @@ class LoteRepository {
         },
       );
 
-      return (response.data as List)
+      final data = response.data;
+      final List results;
+      if (data is Map && data.containsKey('results')) {
+        results = data['results'] as List;
+      } else if (data is List) {
+        results = data;
+      } else {
+        results = [];
+      }
+
+      return results
           .map((e) => LoteResponse.fromJson(e as Map<String, dynamic>))
           .toList();
     } on DioException catch (e) {
@@ -134,7 +154,17 @@ class LoteRepository {
         },
       );
 
-      return (response.data as List)
+      final data = response.data;
+      final List results;
+      if (data is Map && data.containsKey('results')) {
+        results = data['results'] as List;
+      } else if (data is List) {
+        results = data;
+      } else {
+        results = [];
+      }
+
+      return results
           .map((e) => StockModel.fromJson(e as Map<String, dynamic>))
           .toList();
     } on DioException catch (e) {

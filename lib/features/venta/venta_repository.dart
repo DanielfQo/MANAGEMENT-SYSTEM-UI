@@ -1,12 +1,8 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
-
-import 'package:management_system_ui/core/network/api_client.dart';
-
-import 'package:management_system_ui/features/venta/models/venta_model.dart';
+import 'dart:typed_data';
+import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/venta/models/cliente_model.dart';
-import 'package:management_system_ui/features/venta/models/lote_stock_model.dart';
-
+import 'package:management_system_ui/features/venta/models/venta_create_model.dart';
+import 'package:management_system_ui/features/venta/models/venta_read_model.dart';
 
 final ventaRepositoryProvider = Provider((ref) {
   final dio = ref.watch(dioProvider);
@@ -17,54 +13,314 @@ class VentaRepository {
   final Dio _dio;
   VentaRepository(this._dio);
 
-  Future<VentaResponse> crearVenta(VentaModel venta) async {
-    final response = await _dio.post(
-      '/sales/ventas/',
-      data: venta.toJson(),
-    );
+  /// POST /ventas/ - Crear nueva venta
+  /// Valida los campos según el tipo de venta antes de enviar al servidor
+  Future<VentaReadModel> crearVenta(VentaCreateModel venta) async {
+    // Validar modelo antes de enviar
+    final validationError = venta.validate();
+    if (validationError != null) {
+      throw Exception(validationError);
+    }
 
-    return VentaResponse.fromJson(response.data);
+    try {
+      final response = await _dio.post(
+        'sales/ventas/',
+        data: venta.toJson(),
+      );
+      return VentaReadModel.fromJson(response.data);
+    } on DioException catch (e) {
+      final errorMsg = _extractErrorMessage(e, 'Error al crear la venta');
+      throw Exception(errorMsg);
+    }
   }
 
-  Future<List<ClienteModel>> getClientes() async {
-    final response = await _dio.get('/sales/clientes/');
+  /// GET /ventas/ - Listar ventas con filtros opcionales
+  Future<List<VentaReadModel>> getVentas({
+    required int tiendaId,
+    String? tipo,
+    String? fechaDesde,
+    String? fechaHasta,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{'tienda': tiendaId};
+      if (tipo != null) queryParams['tipo'] = tipo;
+      if (fechaDesde != null) queryParams['fecha_desde'] = fechaDesde;
+      if (fechaHasta != null) queryParams['fecha_hasta'] = fechaHasta;
 
-    return (response.data as List)
-        .map((e) => ClienteModel.fromJson(e))
-        .toList();
+      final response = await _dio.get(
+        'sales/ventas/',
+        queryParameters: queryParams,
+      );
+
+      // Manejar respuesta paginada o lista directa
+      final data = response.data;
+      final List results;
+      if (data is Map && data.containsKey('results')) {
+        results = data['results'] as List;
+      } else if (data is List) {
+        results = data;
+      } else {
+        results = [];
+      }
+
+      return results
+          .map((e) => VentaReadModel.fromJson(e))
+          .toList();
+    } on DioException catch (e) {
+      final errorMsg =
+          _extractErrorMessage(e, 'Error al obtener ventas');
+      throw Exception(errorMsg);
+    }
   }
 
-  Future<List<LoteStockModel>> getStock(int tiendaId) async {
-    final response = await _dio.get('/inventory/lotes/');
+  /// GET /ventas/{id}/ - Detalle de una venta
+  Future<VentaReadModel> getVentaDetalle(int id) async {
+    try {
+      final response = await _dio.get('sales/ventas/$id/');
+      return VentaReadModel.fromJson(response.data);
+    } on DioException catch (e) {
+      final errorMsg =
+          _extractErrorMessage(e, 'Error al obtener detalle de venta');
+      throw Exception(errorMsg);
+    }
+  }
 
-    final List<LoteStockModel> productos = [];
+  /// DELETE /ventas/{id}/ - Cancelar venta (soft delete)
+  Future<void> cancelarVenta(int id) async {
+    try {
+      await _dio.delete('sales/ventas/$id/');
+    } on DioException catch (e) {
+      final errorMsg =
+          _extractErrorMessage(e, 'Error al cancelar venta');
+      throw Exception(errorMsg);
+    }
+  }
 
-    for (var lote in response.data) {
-      if (lote['tienda']['id'] != tiendaId) continue;
+  /// POST /ventas/{id}/confirmar-sunat/ - Confirmar propuesta SUNAT
+  Future<VentaReadModel> confirmarSunat(
+    int id,
+    List<ConfirmarSunatItem> items,
+  ) async {
+    try {
+      final response = await _dio.post(
+        'sales/ventas/$id/confirmar-sunat/',
+        data: {
+          'propuesta': items.map((item) => item.toJson()).toList(),
+        },
+      );
+      return VentaReadModel.fromJson(response.data);
+    } on DioException catch (e) {
+      final errorMsg = _extractErrorMessage(
+        e,
+        'Error al confirmar propuesta SUNAT',
+      );
+      throw Exception(errorMsg);
+    }
+  }
 
-      for (var producto in lote['productos']) {
-        if (producto['cantidad_actual'] > 0) {
-          productos.add(
-            LoteStockModel.fromJson(producto),
-          );
+  /// GET /clientes/ - Listar clientes (filtrado por tienda)
+  Future<List<ClienteModel>> getClientes(int tiendaId) async {
+    try {
+      final response = await _dio.get(
+        'sales/clientes/',
+        queryParameters: {'tienda': tiendaId},
+      );
+
+      final data = response.data;
+      final List results;
+      if (data is Map && data.containsKey('results')) {
+        results = data['results'] as List;
+      } else if (data is List) {
+        results = data;
+      } else {
+        results = [];
+      }
+
+      return results
+          .map((e) => ClienteModel.fromJson(e))
+          .toList();
+    } on DioException catch (e) {
+      final errorMsg =
+          _extractErrorMessage(e, 'Error al obtener clientes');
+      throw Exception(errorMsg);
+    }
+  }
+
+  /// GET /clientes/ - Buscar clientes por DNI, RUC o nombre
+  Future<List<ClienteModel>> buscarClientes({
+    required String search,
+    required bool requiereRuc,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'search': search,
+        if (requiereRuc) 'tipo_documento': '6', // RUC
+      };
+
+      final response = await _dio.get(
+        'sales/clientes/',
+        queryParameters: queryParams,
+      );
+
+      final data = response.data;
+      final List results;
+      if (data is Map && data.containsKey('results')) {
+        results = data['results'] as List;
+      } else if (data is List) {
+        results = data;
+      } else {
+        results = [];
+      }
+
+      return results
+          .map((e) => ClienteModel.fromJson(e))
+          .toList();
+    } on DioException catch (e) {
+      final errorMsg =
+          _extractErrorMessage(e, 'Error al buscar clientes');
+      throw Exception(errorMsg);
+    }
+  }
+
+  /// GET /clientes/ - Listar clientes con RUC (tipo_documento = "6") para SUNAT Factura
+  Future<List<ClienteModel>> getClientesConRuc(int tiendaId) async {
+    try {
+      final response = await _dio.get(
+        'sales/clientes/',
+        queryParameters: {'tienda': tiendaId},
+      );
+
+      final data = response.data;
+      final List results;
+      if (data is Map && data.containsKey('results')) {
+        results = data['results'] as List;
+      } else if (data is List) {
+        results = data;
+      } else {
+        results = [];
+      }
+
+      final clientes = results
+          .map((e) => ClienteModel.fromJson(e))
+          .toList();
+
+      // Filtrar solo clientes con RUC (tipo_documento = "6")
+      return clientes.where((cliente) => cliente.tipoDocumento == '6').toList();
+    } on DioException catch (e) {
+      final errorMsg =
+          _extractErrorMessage(e, 'Error al obtener clientes con RUC');
+      throw Exception(errorMsg);
+    }
+  }
+
+  /// GET /ventas/{id}/ticket/ - Descargar ticket PDF de venta NORMAL/CREDITO
+  /// Retorna los bytes del PDF directamente
+  Future<Uint8List> descargarTicketPdf(int ventaId) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        'sales/ventas/$ventaId/ticket/',
+        options: Options(
+          responseType: ResponseType.bytes,
+          followRedirects: true,
+          validateStatus: (status) => status! < 500,
+        ),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'Error al descargar ticket: ${response.statusCode}',
+        );
+      }
+
+      return Uint8List.fromList(response.data ?? []);
+    } on DioException catch (e) {
+      final errorMsg = _extractErrorMessage(e, 'Error al descargar ticket PDF');
+      throw Exception(errorMsg);
+    }
+  }
+
+  /// Helper: Extract error message from DioException response
+  /// PATCH /clientes/{id}/ - Actualizar cliente
+  /// Solo actualiza los campos proporcionados
+  /// Retorna true si fue exitoso
+  Future<bool> actualizarCliente(
+    int clienteId,
+    Map<String, String> campos,
+  ) async {
+    try {
+      await _dio.patch(
+        'sales/clientes/$clienteId/',
+        data: campos,
+      );
+      return true;
+    } on DioException catch (e) {
+      final errorMsg = _extractErrorMessage(e, 'Error al actualizar cliente');
+      throw Exception(errorMsg);
+    }
+  }
+
+  String _extractErrorMessage(DioException e, String defaultMessage) {
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.sendTimeout) {
+      return 'Conexión lenta. Intenta de nuevo';
+    }
+
+    final statusCode = e.response?.statusCode;
+    if (statusCode == 404) {
+      return 'Servicio no disponible (404)';
+    }
+
+    final data = e.response?.data;
+
+    // DRF puede devolver una Lista de errores (ej: ValidationError con string)
+    if (data is List && data.isNotEmpty) {
+      return data.map((e) => e.toString()).join('\n');
+    }
+
+    // Solo procesar si es JSON (Map), no HTML (String)
+    if (data is Map) {
+      // Intentar extraer 'detail' primero (DRF estándar)
+      if (data.containsKey('detail')) {
+        return data['detail'].toString();
+      }
+      // non_field_errors (errores de validate())
+      if (data.containsKey('non_field_errors')) {
+        final nfe = data['non_field_errors'];
+        if (nfe is List && nfe.isNotEmpty) {
+          return nfe.map((e) => e.toString()).join('\n');
         }
+      }
+      // Recopilar errores de campo
+      final errors = <String>[];
+      for (final entry in data.entries) {
+        final key = entry.key;
+        if (key == 'non_field_errors') continue;
+        final value = entry.value;
+        if (value is List) {
+          for (final item in value) {
+            if (item is String) {
+              errors.add('$key: $item');
+            } else if (item is Map) {
+              for (final nested in item.entries) {
+                final nVal = nested.value;
+                if (nVal is List) {
+                  errors.add('${nested.key}: ${nVal.join(', ')}');
+                } else {
+                  errors.add('${nested.key}: $nVal');
+                }
+              }
+            }
+          }
+        } else if (value is String) {
+          errors.add('$key: $value');
+        }
+      }
+      if (errors.isNotEmpty) {
+        return errors.join('\n');
       }
     }
 
-    return productos;
+    return defaultMessage;
   }
-
-  Future<List<VentaResponse>> getVentas({required int tiendaId}) async {
-    final response = await _dio.get(
-      '/sales/ventas/',
-      queryParameters: {
-        "tienda": tiendaId,
-      },
-    );
-
-    return (response.data as List)
-        .map((e) => VentaResponse.fromJson(e))
-        .toList();
-  }
-
 }
