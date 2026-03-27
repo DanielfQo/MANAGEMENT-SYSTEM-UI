@@ -198,7 +198,6 @@ class _LoteDetailContent extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _Chip(label: producto.unidadMedidaDisplay),
                         _Chip(
                           label: producto.conFactura
                               ? 'Con factura'
@@ -208,6 +207,7 @@ class _LoteDetailContent extends StatelessWidget {
                           label:
                               'Disponible: ${producto.cantidadDisponible}',
                         ),
+                        _Chip(label: producto.unidadMedidaDisplay),
                       ],
                     ),
                     const SizedBox(height: 12),
