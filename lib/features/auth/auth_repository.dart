@@ -30,7 +30,7 @@ class AuthRepository {
       await _storage.saveRefreshToken(response.data['refresh']);
 
       return AuthResponseModel.fromJson(response.data); 
-    } on DioException catch (e, st) {
+    } on DioException catch (e, st) { // TODO: Refactorizar _mapDioAuth para que concuerde con el retorno, ejemplo: cuando las credenciales son invalidas
       throw _mapDioAuthFailure(e, st);
     } catch (e, st) {
       throw AuthFailure(

@@ -6,6 +6,8 @@ import 'models/user_me_model.dart';
 
 
 class AuthState {
+  static const _noChange = Object();
+
   final bool isLoading;
   final String? errorMessage;
   final AuthResponseModel? authData; // Guardamos el modelo aquí
@@ -24,14 +26,16 @@ class AuthState {
 
   AuthState copyWith({
     bool? isLoading,
-    String? errorMessage,
+    Object? errorMessage = _noChange,
     AuthResponseModel? authData,
     UserMeModel? userMe,
     int? selectedTiendaId,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: identical(errorMessage, _noChange)
+          ? this.errorMessage
+          : errorMessage as String?,
       authData: authData ?? this.authData,
       userMe: userMe ?? this.userMe,
       selectedTiendaId: selectedTiendaId ?? this.selectedTiendaId,
