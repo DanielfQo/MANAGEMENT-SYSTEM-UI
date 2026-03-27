@@ -348,6 +348,33 @@ class _UsuariosPageState extends ConsumerState<UsuariosPage> {
 
             const SizedBox(height: 12),
 
+            // ── Acciones rápidas ────────────────────────────────────
+            if (esDueno)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _buildAccionButton(
+                        icon: Icons.person_add_alt_1,
+                        label: 'Invitar',
+                        onTap: () => context.go('/invitation/new'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildAccionButton(
+                        icon: Icons.access_time_filled,
+                        label: 'Asistencia',
+                        onTap: () => context.go('/asistencia'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (esDueno) const SizedBox(height: 12),
+
             // ── Filtros ───────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -632,6 +659,40 @@ class _UsuariosPageState extends ConsumerState<UsuariosPage> {
               ],
             ),
         ],
+      ),
+    );
+  }
+
+  // ─── Botón de acción ─────────────────────────────────────────────────────
+
+  Widget _buildAccionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2F3A8F),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

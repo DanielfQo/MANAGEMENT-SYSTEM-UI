@@ -5,12 +5,19 @@ import 'package:management_system_ui/features/auth/tienda_selection_page.dart';
 import 'package:management_system_ui/features/lote/lote_form_page.dart';
 import 'package:management_system_ui/features/lote/lote_detail_page.dart';
 import 'package:management_system_ui/features/lote/productos_page.dart';
-import 'package:management_system_ui/features/venta/venta_page.dart';
 import 'package:management_system_ui/features/home/home_page.dart';
 import 'package:management_system_ui/features/lote/lote_list_page.dart';
 import 'package:management_system_ui/features/lote/inventario_page.dart';
-import 'package:management_system_ui/features/venta/ventas_page.dart';
-import 'package:management_system_ui/features/venta/venta_historial_page.dart';
+import 'package:management_system_ui/features/venta/venta_catalogo_page.dart';
+import 'package:management_system_ui/features/venta/venta_carrito_page.dart';
+import 'package:management_system_ui/features/venta/venta_resumen_page.dart';
+import 'package:management_system_ui/features/venta/venta_propuesta_sunat_page.dart';
+import 'package:management_system_ui/features/venta/venta_comprobante_page.dart';
+import 'package:management_system_ui/features/impresora/impresora_config_page.dart';
+import 'package:management_system_ui/features/caja/caja_page.dart';
+import 'package:management_system_ui/features/caja/caja_historial_page.dart';
+import 'package:management_system_ui/features/caja/caja_resumen_page.dart';
+import 'package:management_system_ui/features/caja/caja_cierre_page.dart';
 import 'package:management_system_ui/features/invitation/invitation_form_page.dart';
 import 'package:management_system_ui/features/invitation/invitation_accept_page.dart';
 import 'package:management_system_ui/features/onboarding/profile_complete_page.dart';
@@ -44,10 +51,50 @@ class MainShell extends ConsumerWidget {
     final puedeVerUsuarios = esDueno || esAdmin;
     final location = GoRouterState.of(context).uri.path;
 
+    // Construir lista de items dinámicamente
+    final items = <BottomNavigationBarItem>[
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.home_outlined),
+        activeIcon: Icon(Icons.home),
+        label: 'Inicio',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.inventory_2_outlined),
+        activeIcon: Icon(Icons.inventory_2),
+        label: 'Inventario',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.point_of_sale_outlined),
+        activeIcon: Icon(Icons.point_of_sale),
+        label: 'Ventas',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.receipt_outlined),
+        activeIcon: Icon(Icons.receipt),
+        label: 'Caja',
+      ),
+      if (puedeVerUsuarios)
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.people_outline),
+          activeIcon: Icon(Icons.people),
+          label: 'Usuarios',
+        ),
+    ];
+
+    // Calcular currentIndex según la ruta
     int currentIndex = 0;
-    if (location.startsWith('/lotes')) currentIndex = 1;
-    if (location == '/usuarios' || location == '/ventas') currentIndex = 2;
-    if (location == '/asistencia' && puedeVerUsuarios) currentIndex = 3;
+    if (location.startsWith('/lotes') ||
+        location.startsWith('/productos')) {
+      currentIndex = 1;
+    } else if (location.startsWith('/ventas')) {
+      currentIndex = 2;
+    } else if (location.startsWith('/caja')) {
+      currentIndex = 3;
+    } else if (puedeVerUsuarios &&
+        (location.startsWith('/usuarios') ||
+         location.startsWith('/asistencia'))) {
+      currentIndex = 4;
+    }
 
     return Scaffold(
       body: child,
@@ -57,45 +104,20 @@ class MainShell extends ConsumerWidget {
         selectedItemColor: const Color(0xFF2F3A8F),
         unselectedItemColor: Colors.grey,
         onTap: (index) {
-          if (index == 0) context.go('/home');
-          if (index == 1) context.go('/lotes');
-          if (index == 2) {
-            puedeVerUsuarios
-                ? context.go('/usuarios')
-                : context.go('/ventas');
+          switch (index) {
+            case 0:
+              context.go('/home');
+            case 1:
+              context.go('/lotes');
+            case 2:
+              context.go('/ventas');
+            case 3:
+              context.go('/caja');
+            case 4:
+              if (puedeVerUsuarios) context.go('/usuarios');
           }
-          if (index == 3 && puedeVerUsuarios) context.go('/asistencia');
         },
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_outlined),
-            activeIcon: Icon(Icons.inventory_2),
-            label: 'Inventario',
-          ),
-          if (puedeVerUsuarios)
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
-              label: 'Usuarios',
-            )
-          else
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.point_of_sale_outlined),
-              activeIcon: Icon(Icons.point_of_sale),
-              label: 'Ventas',
-            ),
-          if (puedeVerUsuarios)
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.access_time_outlined),
-              activeIcon: Icon(Icons.access_time_filled),
-              label: 'Asistencia',
-            ),
-        ],
+        items: items,
       ),
     );
   }
@@ -171,11 +193,49 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/ventas',
-            builder: (context, state) => const VentasPage(),
+            builder: (context, state) => const VentaCatalogoPage(),
           ),
           GoRoute(
-            path: '/ventas/historial',
-            builder: (context, state) => const VentaHistorialPage(),
+            path: '/ventas/carrito',
+            builder: (context, state) => const VentaCarritoPage(),
+          ),
+          GoRoute(
+            path: '/ventas/resumen',
+            builder: (context, state) => const VentaResumenPage(),
+          ),
+          GoRoute(
+            path: '/ventas/propuesta-sunat',
+            builder: (context, state) =>
+                const VentaPropuestaSunatPage(),
+          ),
+          GoRoute(
+            path: '/ventas/comprobante',
+            builder: (context, state) =>
+                const VentaComprobantePage(),
+          ),
+          GoRoute(
+            path: '/config/impresora',
+            builder: (context, state) =>
+                const ImpresoraConfigPage(),
+          ),
+          GoRoute(
+            path: '/caja',
+            builder: (context, state) => const CajaPage(),
+          ),
+          GoRoute(
+            path: '/caja/historial',
+            builder: (context, state) =>
+                const CajaHistorialPage(),
+          ),
+          GoRoute(
+            path: '/caja/resumen',
+            builder: (context, state) =>
+                const CajaResumenPage(),
+          ),
+          GoRoute(
+            path: '/caja/cierre',
+            builder: (context, state) =>
+                const CajaCierrePage(),
           ),
           GoRoute(
             path: '/tiendas',
@@ -193,10 +253,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/invitation/new',
         builder: (context, state) => const InvitationFormPage(),
-      ),
-      GoRoute(
-        path: '/ventas/nueva',
-        builder: (context, state) => const VentaPage(),
       ),
     ],
 

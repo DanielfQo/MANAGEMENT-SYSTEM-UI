@@ -52,7 +52,10 @@ class AuthNotifier extends Notifier<AuthState> {
       }
     });
     ref.onDispose(() => sub.cancel());
-    return const AuthState();
+
+    // Cargar selectedTiendaId del storage en el build
+    final lastTiendaId = StorageService.getLastTiendaIdSync();
+    return AuthState(selectedTiendaId: lastTiendaId);
   }
 
   Future<void> login(String username, String password) async {

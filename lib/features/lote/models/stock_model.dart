@@ -3,6 +3,7 @@ class StockModel {
   final String productoNombre;
   final String unidadMedida;
   final String cantidadDisponible;
+  final String cantidadAveriada;
   final String precioVentaMercado;
 
   StockModel({
@@ -10,6 +11,7 @@ class StockModel {
     required this.productoNombre,
     required this.unidadMedida,
     required this.cantidadDisponible,
+    required this.cantidadAveriada,
     required this.precioVentaMercado,
   });
 
@@ -19,6 +21,7 @@ class StockModel {
       productoNombre: json['producto_nombre'] as String,
       unidadMedida: json['unidad_medida'] as String,
       cantidadDisponible: json['cantidad_disponible'].toString(),
+      cantidadAveriada: json['cantidad_averiada']?.toString() ?? '0',
       precioVentaMercado: json['precio_venta_mercado'].toString(),
     );
   }

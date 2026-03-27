@@ -62,7 +62,7 @@ class HomePage extends ConsumerWidget {
                     label: "Cierre Caja",
                     color: Colors.white,
                     border: true,
-                    onTap: () {},
+                    onTap: () => context.go('/caja'),
                   ),
                   if (esDueno) ...[
                     const SizedBox(width: 12),

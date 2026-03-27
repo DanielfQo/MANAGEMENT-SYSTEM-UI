@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'tienda_provider.dart';
@@ -138,11 +137,51 @@ class _TiendaSwitcherSheetState extends ConsumerState<TiendaSwitcherSheet> {
 }
 
 // Helper para abrir el sheet fácilmente
-void showTiendaSwitcher(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => const TiendaSwitcherSheet(),
-  );
+void showTiendaSwitcher(
+  BuildContext context, {
+  int? carritoItemsCount,
+  VoidCallback? onConfirmClearCarrito,
+}) {
+  // Si hay items en carrito, mostrar diálogo de confirmación
+  if (carritoItemsCount != null && carritoItemsCount > 0) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cambiar de tienda'),
+        content: const Text(
+          'Cambiar de tienda vaciará el carrito. ¿Deseas continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              onConfirmClearCarrito?.call();
+              await Future.delayed(const Duration(milliseconds: 200));
+              if (context.mounted) {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => const TiendaSwitcherSheet(),
+                );
+              }
+            },
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+  } else {
+    // Sin carrito, mostrar directamente el selector
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const TiendaSwitcherSheet(),
+    );
+  }
 }

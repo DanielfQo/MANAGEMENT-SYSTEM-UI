@@ -12,6 +12,8 @@ class CustomAppBar extends ConsumerWidget {
   final bool isTiendaTitle;
   final VoidCallback? onBack;
   final String? badge;
+  final Widget? trailing;
+  final VoidCallback? onTiendaPressed;
 
   const CustomAppBar({
     super.key,
@@ -21,13 +23,14 @@ class CustomAppBar extends ConsumerWidget {
     this.isTiendaTitle = false,
     this.onBack,
     this.badge,
+    this.trailing,
+    this.onTiendaPressed,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userMe = ref.watch(authProvider).userMe;
     final esDueno = userMe?.isDueno ?? false;
-    final showSelector = esDueno && isTiendaTitle;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -46,27 +49,25 @@ class CustomAppBar extends ConsumerWidget {
             ),
           const SizedBox(width: 12),
           Expanded(
-            child: showSelector
-                ? _TiendaSelectorDropdown()
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
                   ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
           ),
           if (badge != null)
             Container(
@@ -84,7 +85,14 @@ class CustomAppBar extends ConsumerWidget {
                 ),
               ),
             ),
-          if (onBack == null) ...[
+          // Selector de tienda para dueños (si isTiendaTitle=true)
+          if (esDueno && isTiendaTitle) ...[
+            const SizedBox(width: 12),
+            _TiendaSelectorCompact(onPressed: onTiendaPressed),
+          ],
+          if (trailing != null)
+            trailing!
+          else if (onBack == null) ...[
             IconButton(
               onPressed: () {},
               icon: const Icon(Icons.notifications_none),
@@ -100,72 +108,21 @@ class CustomAppBar extends ConsumerWidget {
   }
 }
 
-/// Widget que muestra y permite cambiar la tienda actual (inline en AppBar)
-class _TiendaSelectorDropdown extends ConsumerWidget {
-  const _TiendaSelectorDropdown();
+/// Widget compacto que muestra icono de tienda y permite cambiarla
+class _TiendaSelectorCompact extends StatelessWidget {
+  final VoidCallback? onPressed;
+
+  const _TiendaSelectorCompact({this.onPressed});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    final selectedId = authState.selectedTiendaId;
-    final userTiendas = authState.userMe?.tiendas ?? [];
-
-    final tiendaNombre = userTiendas.isEmpty
-        ? null
-        : userTiendas
-                .where((t) => t.tiendaId == selectedId)
-                .firstOrNull
-                ?.tiendaNombre ??
-            userTiendas.first.tiendaNombre;
-
+  Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: () => showTiendaSwitcher(context),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.lightBackground,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: AppColors.secondary.withValues(alpha: 0.15),
-              width: 1.5,
-            ),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.store,
-                size: 18,
-                color: AppColors.primary,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Tienda Actual',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      tiendaNombre ?? 'Sin tienda',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+      child: Tooltip(
+        message: 'Cambiar tienda',
+        child: IconButton(
+          icon: const Icon(Icons.store_outlined),
+          onPressed: onPressed ?? () => showTiendaSwitcher(context),
         ),
       ),
     );

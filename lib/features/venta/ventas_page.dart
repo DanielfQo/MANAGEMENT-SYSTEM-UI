@@ -19,19 +19,16 @@ class VentasPage extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  context.go('/ventas/nueva');
+                  context.go('/ventas/catalogo');
                 },
                 child: const Text("Nueva Venta"),
               ),
             ),
-
             const SizedBox(height: 20),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(

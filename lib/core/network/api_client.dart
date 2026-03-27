@@ -3,6 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_interceptor.dart';
 import 'package:management_system_ui/core/constants/constants.dart';
 
+bool _isDebug() {
+  bool inDebugMode = false;
+  assert(inDebugMode = true);
+  return inDebugMode;
+}
+
 // Este provider crea una única instancia de Dio para toda la app
 final dioProvider = Provider<Dio>((ref) {
 
@@ -12,16 +18,18 @@ final dioProvider = Provider<Dio>((ref) {
       connectTimeout: const Duration(seconds: 5),
       receiveTimeout: const Duration(seconds: 10),
       sendTimeout: const Duration(seconds: 10),
-      validateStatus: (status) => status != null && status < 500,
     ),
   );
 
   dio.interceptors.add(AuthInterceptor(dio));
 
-  dio.interceptors.add(LogInterceptor(
-    requestBody: true,
-    responseBody: true,
-  ));
+  // Solo loguear en debug mode
+  if (_isDebug()) {
+    dio.interceptors.add(LogInterceptor(
+      requestBody: true,
+      responseBody: true,
+    ));
+  }
 
   return dio;
 });

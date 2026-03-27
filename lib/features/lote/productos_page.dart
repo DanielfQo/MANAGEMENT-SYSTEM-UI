@@ -14,15 +14,28 @@ class ProductosPage extends ConsumerStatefulWidget {
 }
 
 class _ProductosPageState extends ConsumerState<ProductosPage> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(() => setState(() {
+          _searchQuery = _searchController.text;
+        }));
     Future.microtask(
       () {
         ref.read(inventarioProvider.notifier).cargarProductos();
         ref.read(inventarioProvider.notifier).cargarStock();
+        ref.read(inventarioProvider.notifier).cargarLotes();
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -37,6 +50,19 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
       for (final s in stock) s.productoId: s,
     };
 
+    // Set de productos con factura (cruzar con lotes activos)
+    final facturableIds = <int>{
+      for (final lote in state.lotes)
+        for (final lp in lote.productos)
+          if (lp.conFactura && lp.isActive) lp.producto,
+    };
+
+    // Filtrar productos por búsqueda
+    final productosParaMostrar = productos
+        .where((p) => _searchQuery.isEmpty ||
+            p.nombre.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F7),
       body: SafeArea(
@@ -47,6 +73,30 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
               subtitle: 'Productos y disponibilidad',
               icon: Icons.inventory,
               onBack: () => context.go('/lotes'),
+            ),
+            // Buscador
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Buscar producto...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () => _searchController.clear(),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
             ),
             Expanded(
               child: state.isLoading && productos.isEmpty
@@ -65,9 +115,12 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                             ref
                                 .read(inventarioProvider.notifier)
                                 .cargarStock();
+                            ref
+                                .read(inventarioProvider.notifier)
+                                .cargarLotes();
                           },
                         )
-                      : productos.isEmpty
+                      : productosParaMostrar.isEmpty
                           ? const EmptyState(
                               icon: Icons.inventory_outlined,
                               titulo: 'Sin productos',
@@ -83,6 +136,9 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                                 await ref
                                     .read(inventarioProvider.notifier)
                                     .cargarStock();
+                                await ref
+                                    .read(inventarioProvider.notifier)
+                                    .cargarLotes();
                               },
                               child: GridView.builder(
                                 padding:
@@ -94,14 +150,17 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                                   mainAxisSpacing: 12,
                                   childAspectRatio: 0.75,
                                 ),
-                                itemCount: productos.length,
+                                itemCount: productosParaMostrar.length,
                                 itemBuilder: (context, index) {
-                                  final producto = productos[index];
+                                  final producto = productosParaMostrar[index];
                                   final productoStock =
                                       stockMap[producto.id];
+                                  final tieneFactura =
+                                      facturableIds.contains(producto.id);
                                   return _ProductoGridCard(
                                     producto: producto,
                                     stock: productoStock,
+                                    tieneFactura: tieneFactura,
                                     isDueno: isDueno,
                                     onTap: () {
                                       _mostrarDetalleModal(
@@ -144,12 +203,14 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
 class _ProductoGridCard extends StatelessWidget {
   final ProductoModel producto;
   final StockModel? stock;
+  final bool tieneFactura;
   final bool isDueno;
   final VoidCallback onTap;
 
   const _ProductoGridCard({
     required this.producto,
     this.stock,
+    required this.tieneFactura,
     required this.isDueno,
     required this.onTap,
   });
@@ -307,10 +368,33 @@ class _ProductoGridCard extends StatelessWidget {
                           ),
                       ],
                     ),
-                    StatusBadge(
-                      label:
-                          producto.isActive ? 'Activo' : 'Inactivo',
-                      color: producto.isActive ? Colors.green : Colors.red,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: tieneFactura
+                                ? const Color(0xFF1565C0)
+                                : Colors.grey[600],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            tieneFactura ? 'Con factura' : 'Sin factura',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        StatusBadge(
+                          label:
+                              producto.isActive ? 'Activo' : 'Inactivo',
+                          color: producto.isActive ? Colors.green : Colors.red,
+                        ),
+                      ],
                     ),
                   ],
                 ),
