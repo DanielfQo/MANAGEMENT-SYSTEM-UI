@@ -42,20 +42,19 @@ class AuthState {
 class AuthNotifier extends Notifier<AuthState> {
 
   late final AuthRepository _repository;
+  late final SessionStorage _storage;
 
   @override
   AuthState build() {
     _repository = ref.watch(authRepositoryProvider);
+    _storage = ref.watch(sessionStorageProvider);
     final sub = authEventController.stream.listen((event) {
       if (event == AuthEvent.logout) {
         state = const AuthState();
       }
     });
     ref.onDispose(() => sub.cancel());
-
-    // Cargar selectedTiendaId del storage en el build
-    final lastTiendaId = StorageService.getLastTiendaIdSync();
-    return AuthState(selectedTiendaId: lastTiendaId);
+    return const AuthState();
   }
 
   Future<void> login(String username, String password) async {
@@ -71,7 +70,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
       if (userData.tiendas.isNotEmpty) {
         // Intentar cargar la última tienda usada
-        final lastTiendaId = await StorageService.getLastTiendaId();
+        final lastTiendaId = await _storage.getLastTiendaId();
         final tiendaExiste = userData.tiendas.any((t) => t.tiendaId == lastTiendaId);
 
         tiendaActivac = tiendaExiste ? lastTiendaId : userData.tiendas.first.tiendaId;
@@ -92,12 +91,12 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
-    await StorageService.clearToken();
+    await _storage.clearAuthTokens();
     state = const AuthState();
   }
 
   Future<void> selectTienda(int tiendaId) async {
-    await StorageService.setLastTiendaId(tiendaId);
+    await _storage.setLastTiendaId(tiendaId);
     state = state.copyWith(selectedTiendaId: tiendaId);
   }
 

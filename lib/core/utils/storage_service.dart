@@ -1,62 +1,76 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class StorageService {
-  static String? _token;
-  static String? _refreshToken;
-  static int? _lastTiendaId;
+abstract class SessionStorage {
+  Future<void> saveToken(String token);
+  Future<String?> getToken();
 
-  static Future<void> saveToken(String token) async {
-    _token = token;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', token.trim());
+  Future<void> saveRefreshToken(String token);
+  Future<String?> getRefreshToken();
+
+  Future<void> clearAuthTokens();
+
+  Future<void> setLastTiendaId(int tiendaId);
+  Future<int?> getLastTiendaId();
+}
+
+final sessionStorageProvider = Provider<SessionStorage>((ref) {
+  return SecureSessionStorage(
+    secureStorage: const FlutterSecureStorage(),
+    preferencesFuture: SharedPreferences.getInstance(),
+  );
+});
+
+class SecureSessionStorage implements SessionStorage {
+  SecureSessionStorage({
+    required FlutterSecureStorage secureStorage,
+    required Future<SharedPreferences> preferencesFuture,
+  })  : _secureStorage = secureStorage,
+        _preferencesFuture = preferencesFuture;
+
+  final FlutterSecureStorage _secureStorage;
+  final Future<SharedPreferences> _preferencesFuture;
+
+  static const _tokenKey = 'token';
+  static const _refreshTokenKey = 'refresh_token';
+  static const _lastTiendaIdKey = 'last_tienda_id';
+
+  @override
+  Future<void> saveToken(String token) {
+    return _secureStorage.write(key: _tokenKey, value: token.trim());
   }
 
-  static Future<String?> getToken() async {
-    if (_token != null) return _token;
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('token');
-    return _token;
+  @override
+  Future<String?> getToken() {
+    return _secureStorage.read(key: _tokenKey);
   }
 
-  static String? getTokenSync() {
-    return _token;
+  @override
+  Future<void> saveRefreshToken(String token) {
+    return _secureStorage.write(key: _refreshTokenKey, value: token.trim());
   }
 
-  static Future<void> saveRefreshToken(String token) async {
-    _refreshToken = token;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('refresh_token', token.trim());
+  @override
+  Future<String?> getRefreshToken() {
+    return _secureStorage.read(key: _refreshTokenKey);
   }
 
-  static Future<String?> getRefreshToken() async {
-    if (_refreshToken != null) return _refreshToken;
-    final prefs = await SharedPreferences.getInstance();
-    _refreshToken = prefs.getString('refresh_token');
-    return _refreshToken;
+  @override
+  Future<void> clearAuthTokens() async {
+    await _secureStorage.delete(key: _tokenKey);
+    await _secureStorage.delete(key: _refreshTokenKey);
   }
 
-  static Future<void> clearToken() async {
-    _token = null;
-    _refreshToken = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('refresh_token');
+  @override
+  Future<void> setLastTiendaId(int tiendaId) async {
+    final prefs = await _preferencesFuture;
+    await prefs.setInt(_lastTiendaIdKey, tiendaId);
   }
 
-  static Future<void> setLastTiendaId(int tiendaId) async {
-    _lastTiendaId = tiendaId;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('last_tienda_id', tiendaId);
-  }
-
-  static Future<int?> getLastTiendaId() async {
-    if (_lastTiendaId != null) return _lastTiendaId;
-    final prefs = await SharedPreferences.getInstance();
-    _lastTiendaId = prefs.getInt('last_tienda_id');
-    return _lastTiendaId;
-  }
-
-  static int? getLastTiendaIdSync() {
-    return _lastTiendaId;
+  @override
+  Future<int?> getLastTiendaId() async {
+    final prefs = await _preferencesFuture;
+    return prefs.getInt(_lastTiendaIdKey);
   }
 }
