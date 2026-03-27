@@ -28,6 +28,21 @@ import 'package:management_system_ui/features/tienda/tiendas_page.dart';
 import 'package:management_system_ui/features/tienda/tienda_form_page.dart';
 import 'package:management_system_ui/core/models/store_model.dart';
 
+class AppRoutes {
+  static const invite = '/invite';
+  static const login = '/login';
+  static const profileComplete = '/profile/complete';
+  static const setup = '/setup';
+  static const selectStore = '/select-store';
+
+  static const home = '/home';
+  static const usuarios = '/usuarios';
+  static const asistencia = '/asistencia';
+  static const lotes = '/lotes';
+  static const ventas = '/ventas';
+  static const caja = '/caja';
+}
+
 class AuthStateNotifier extends ChangeNotifier {
   final Ref _ref;
   AuthStateNotifier(this._ref) {
@@ -106,15 +121,20 @@ class MainShell extends ConsumerWidget {
         onTap: (index) {
           switch (index) {
             case 0:
-              context.go('/home');
+              context.go(AppRoutes.home);
+              break;
             case 1:
-              context.go('/lotes');
+              context.go(AppRoutes.lotes);
+              break;
             case 2:
-              context.go('/ventas');
+              context.go(AppRoutes.ventas);
+              break;
             case 3:
-              context.go('/caja');
+              context.go(AppRoutes.caja);
+              break;
             case 4:
-              if (puedeVerUsuarios) context.go('/usuarios');
+              if (puedeVerUsuarios) context.go(AppRoutes.usuarios);
+              break;
           }
         },
         items: items,
@@ -127,49 +147,49 @@ final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = ref.read(authStateNotifierProvider);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: AppRoutes.login,
     refreshListenable: authNotifier,
     routes: [
       GoRoute(
-        path: '/invite',
+        path: AppRoutes.invite,
         builder: (context, state) {
           final token = state.uri.queryParameters['token'];
           return InvitationAcceptPage(token: token);
         },
       ),
       GoRoute(
-        path: '/login',
+        path: AppRoutes.login,
         builder: (context, state) => const AuthPage(),
       ),
       GoRoute(
-        path: '/profile/complete',
+        path: AppRoutes.profileComplete,
         builder: (context, state) => const ProfileCompletePage(),
       ),
       GoRoute(
-        path: '/setup',
+        path: AppRoutes.setup,
         builder: (context, state) => const SetupPage(),
       ),
       GoRoute(
-        path: '/select-store',
+        path: AppRoutes.selectStore,
         builder: (context, state) => const TiendaSelectionPage(),
       ),
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),
         routes: [
           GoRoute(
-            path: '/home',
+            path: AppRoutes.home,
             builder: (context, state) => const HomePage(),
           ),
           GoRoute(
-            path: '/usuarios',
+            path: AppRoutes.usuarios,
             builder: (context, state) => const UsuariosPage(),
           ),
           GoRoute(
-            path: '/asistencia',
+            path: AppRoutes.asistencia,
             builder: (context, state) => const AsistenciaPage(),
           ),
           GoRoute(
-            path: '/lotes',
+            path: AppRoutes.lotes,
             builder: (context, state) => const InventarioPage(),
           ),
           GoRoute(
@@ -192,7 +212,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const ProductosPage(),
           ),
           GoRoute(
-            path: '/ventas',
+            path: AppRoutes.ventas,
             builder: (context, state) => const VentaCatalogoPage(),
           ),
           GoRoute(
@@ -219,7 +239,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const ImpresoraConfigPage(),
           ),
           GoRoute(
-            path: '/caja',
+            path: AppRoutes.caja,
             builder: (context, state) => const CajaPage(),
           ),
           GoRoute(
@@ -260,49 +280,54 @@ final routerProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(authProvider);
       final currentPath = state.uri.path;
 
-      if (currentPath == '/invite') return null;
+      if (currentPath == AppRoutes.invite) return null;
 
       if (!authState.isAuthenticated) {
-        return currentPath == '/login' ? null : '/login';
+        return currentPath == AppRoutes.login ? null : AppRoutes.login;
       }
 
       final userMe = authState.userMe;
       final tiendas = userMe?.tiendas ?? [];
       final isDueno = userMe?.isDueno ?? false;
+      final esAdmin = userMe?.rol == Roles.administrador;
+      final puedeVerUsuarios = isDueno || esAdmin;
 
       final isProfileIncomplete = userMe?.isProfileIncomplete ?? false;
       if (isProfileIncomplete) {
-        return currentPath == '/profile/complete' ? null : '/profile/complete';
+        return currentPath == AppRoutes.profileComplete
+            ? null
+            : AppRoutes.profileComplete;
       }
 
       if (isDueno && tiendas.isEmpty) {
-        return currentPath == '/setup' ? null : '/setup';
+        return currentPath == AppRoutes.setup ? null : AppRoutes.setup;
       }
 
-      final onboardingPaths = ['/login', '/profile/complete', '/setup'];
+      if (!puedeVerUsuarios &&
+          (currentPath.startsWith(AppRoutes.usuarios) ||
+              currentPath.startsWith(AppRoutes.asistencia))) {
+        return AppRoutes.home;
+      }
+
+      final onboardingPaths = [
+        AppRoutes.login,
+        AppRoutes.profileComplete,
+        AppRoutes.setup,
+      ];
       if (onboardingPaths.contains(currentPath)) {
         if (tiendas.isNotEmpty && authState.selectedTiendaId == null) {
-          Future.microtask(() async {
-            await ref
-                .read(authProvider.notifier)
-                .selectTienda(tiendas.first.tiendaId);
-          });
+          return AppRoutes.selectStore;
         }
-        return '/home';
+        return AppRoutes.home;
       }
 
       final hasStoreSelected = authState.selectedTiendaId != null;
       if (!hasStoreSelected && tiendas.isNotEmpty) {
-        Future.microtask(() async {
-          await ref
-              .read(authProvider.notifier)
-              .selectTienda(tiendas.first.tiendaId);
-        });
-        return null;
+        return currentPath == AppRoutes.selectStore ? null : AppRoutes.selectStore;
       }
 
-      if (hasStoreSelected && currentPath == '/select-store') {
-        return '/home';
+      if (hasStoreSelected && currentPath == AppRoutes.selectStore) {
+        return AppRoutes.home;
       }
 
       return null;
