@@ -752,13 +752,15 @@ class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
   ) {
     final inventario = ref.watch(inventarioProvider);
 
-    // Filtrar lotes que tengan el producto
+    // Filtrar lotes que tengan el producto con stock disponible
     final lotesDisponibles = <Map<String, dynamic>>[];
     var lotesFifo = <Map<String, dynamic>>[];
 
     for (final lote in inventario.lotes) {
       for (final loteProducto in lote.productos) {
-        if (loteProducto.producto == item.productoId && loteProducto.isActive) {
+        if (loteProducto.producto == item.productoId &&
+            loteProducto.isActive &&
+            loteProducto.cantidadDisponible > 0) {
           lotesDisponibles.add({
             'id': loteProducto.id,
             'lote_id': lote.id,
