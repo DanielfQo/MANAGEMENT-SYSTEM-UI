@@ -115,6 +115,14 @@ class CarritoNotifier extends Notifier<CarritoState> {
     }
   }
 
+  void actualizarLoteProductoId(int index, int? loteProductoId) {
+    if (index >= 0 && index < state.items.length) {
+      final newItems = [...state.items];
+      newItems[index] = newItems[index].copyWith(loteProductoId: loteProductoId);
+      state = state.copyWith(items: newItems);
+    }
+  }
+
   void limpiar() {
     state = const CarritoState(items: []);
   }
