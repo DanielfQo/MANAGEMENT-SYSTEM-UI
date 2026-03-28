@@ -6,10 +6,12 @@ import 'package:management_system_ui/features/auth/auth_provider.dart';
 class VentaFlowHeader extends ConsumerWidget {
   final int currentStep;
   final bool showTiendaHeader;
+  final void Function(int)? onStepTap;
 
   const VentaFlowHeader({
     required this.currentStep,
     this.showTiendaHeader = true,
+    this.onStepTap,
     super.key,
   });
 
@@ -71,6 +73,7 @@ class VentaFlowHeader extends ConsumerWidget {
                 currentIndex: currentStep,
                 icon: Icons.storefront,
                 label: 'Productos',
+                onTap: onStepTap,
               ),
               _buildStepConnector(
                 currentIndex: currentStep,
@@ -81,6 +84,7 @@ class VentaFlowHeader extends ConsumerWidget {
                 currentIndex: currentStep,
                 icon: Icons.shopping_cart,
                 label: 'Carrito',
+                onTap: onStepTap,
               ),
               _buildStepConnector(
                 currentIndex: currentStep,
@@ -91,6 +95,7 @@ class VentaFlowHeader extends ConsumerWidget {
                 currentIndex: currentStep,
                 icon: Icons.receipt_long,
                 label: 'Resumen',
+                onTap: onStepTap,
               ),
               _buildStepConnector(
                 currentIndex: currentStep,
@@ -101,6 +106,7 @@ class VentaFlowHeader extends ConsumerWidget {
                 currentIndex: currentStep,
                 icon: Icons.check_circle,
                 label: 'Comprobante',
+                onTap: onStepTap,
               ),
             ],
           ),
@@ -129,32 +135,45 @@ class VentaFlowHeader extends ConsumerWidget {
     required int currentIndex,
     required IconData icon,
     required String label,
+    void Function(int)? onTap,
   }) {
     final isCompleted = currentIndex > index;
     final isActive = currentIndex == index;
+    final isClickable = isCompleted && onTap != null;
+
+    final container = AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isCompleted || isActive
+            ? const Color(0xFF2F3A8F)
+            : const Color(0xFFE0E0E0),
+      ),
+      child: Center(
+        child: isCompleted
+            ? const Icon(Icons.check, color: Colors.white, size: 20)
+            : Icon(
+                icon,
+                color: isActive ? Colors.white : Colors.grey,
+                size: 20,
+              ),
+      ),
+    );
 
     return Column(
       children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isCompleted || isActive
-                ? const Color(0xFF2F3A8F)
-                : const Color(0xFFE0E0E0),
-          ),
-          child: Center(
-            child: isCompleted
-                ? const Icon(Icons.check, color: Colors.white, size: 20)
-                : Icon(
-                    icon,
-                    color: isActive ? Colors.white : Colors.grey,
-                    size: 20,
-                  ),
-          ),
-        ),
+        if (isClickable)
+          GestureDetector(
+            onTap: () => onTap!(index),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: container,
+            ),
+          )
+        else
+          container,
         const SizedBox(height: 4),
         Text(
           label,

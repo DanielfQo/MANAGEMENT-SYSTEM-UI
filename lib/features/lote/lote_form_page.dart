@@ -183,7 +183,7 @@ class _LoteFormPageState extends ConsumerState<LoteFormPage> {
 
                       // Producto selector o nombre input
                       if (_usarProductoExistente)
-                        _buildProductDropdown(productos)
+                        _buildProductSelector(productos, ref)
                       else
                         _buildTextFormField(
                           controller: _nuevoNombreCtrl,
@@ -202,19 +202,17 @@ class _LoteFormPageState extends ConsumerState<LoteFormPage> {
                       _buildFacturaSwitch(),
                       const SizedBox(height: 16),
 
-                      // Cantidad
-                      _buildDecimalField(
+                      // Cantidad con botones +/-
+                      _buildQuantityFieldWithButtons(
                         controller: _cantidadCtrl,
                         label: 'Cantidad',
-                        prefixIcon: Icons.production_quantity_limits,
                       ),
                       const SizedBox(height: 16),
 
-                      // Cantidad averiada
-                      _buildDecimalField(
+                      // Cantidad averiada con botones +/-
+                      _buildQuantityFieldWithButtons(
                         controller: _cantidadAveriadaCtrl,
                         label: 'Cantidad Averiada',
-                        prefixIcon: Icons.warning_outlined,
                       ),
                       const SizedBox(height: 16),
 
@@ -497,6 +495,125 @@ class _LoteFormPageState extends ConsumerState<LoteFormPage> {
     );
   }
 
+  Widget _buildQuantityFieldWithButtons({
+    required TextEditingController controller,
+    required String label,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            // Botón menos
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
+                ),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    final current = double.tryParse(controller.text) ?? 0;
+                    final newValue = (current - 1).clamp(0.0, double.infinity);
+                    controller.text = newValue.toStringAsFixed(3).replaceAll(RegExp(r'\.?0+$'), '');
+                  },
+                  child: const SizedBox(
+                    width: 50,
+                    height: 50,
+                    child: Center(
+                      child: Icon(Icons.remove, color: Color(0xFF1F2A7C), size: 20),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Campo de texto
+            Expanded(
+              child: TextFormField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  hintText: '0',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.zero,
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.zero,
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.zero,
+                    borderSide: const BorderSide(color: Color(0xFF1F2A7C)),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return null;
+                  }
+                  if (double.tryParse(value) == null) {
+                    return 'Número válido';
+                  }
+                  if (double.parse(value) < 0) {
+                    return 'No negativo';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            // Botón más
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    final current = double.tryParse(controller.text) ?? 0;
+                    final newValue = current + 1;
+                    controller.text = newValue.toStringAsFixed(3).replaceAll(RegExp(r'\.?0+$'), '');
+                  },
+                  child: const SizedBox(
+                    width: 50,
+                    height: 50,
+                    child: Center(
+                      child: Icon(Icons.add, color: Color(0xFF1F2A7C), size: 20),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildTextFormField({
     required TextEditingController controller,
     required String label,
@@ -643,6 +760,357 @@ class _LoteFormPageState extends ConsumerState<LoteFormPage> {
         return null;
       },
     );
+  }
+
+  Widget _buildProductSelector(List<ProductoModel> productos, WidgetRef ref) {
+    ProductoModel? productoSeleccionado;
+    try {
+      productoSeleccionado = productos.firstWhere((p) => p.id == _selectedProductoId);
+    } catch (_) {
+      // No encontrado
+    }
+
+    return GestureDetector(
+      onTap: () => _mostrarSelectorProductos(productos, ref),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Selecciona un producto',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  if (productoSeleccionado != null)
+                    Text(
+                      productoSeleccionado.nombre,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  else
+                    Text(
+                      'Ninguno seleccionado',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[600]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _mostrarSelectorProductos(List<ProductoModel> productos, WidgetRef ref) async {
+    final dio = ref.read(dioProvider);
+    final authState = ref.read(authProvider);
+    final tiendaId = authState.selectedTiendaId;
+
+    if (tiendaId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay tienda seleccionada')),
+        );
+      }
+      return;
+    }
+
+    try {
+      // Cargar stock de la tienda
+      final stockResponse = await dio.get(
+        'inventory/stock/',
+        queryParameters: {'tienda': tiendaId},
+      );
+
+      if (!mounted) return;
+
+      // Procesar stock y crear mapa
+      List stockList = [];
+      if (stockResponse.data is Map && stockResponse.data.containsKey('results')) {
+        stockList = stockResponse.data['results'];
+      } else if (stockResponse.data is List) {
+        stockList = stockResponse.data;
+      }
+
+      Map<int, Map<String, dynamic>> stockPorProducto = {};
+      for (var stockItem in stockList) {
+        final productoId = stockItem['producto_id'] as int?;
+        final cantidadDisponible = double.tryParse(stockItem['cantidad_disponible']?.toString() ?? '0') ?? 0.0;
+        final precioVentaMercado = double.tryParse(stockItem['precio_venta_mercado']?.toString() ?? '0') ?? 0.0;
+
+        if (productoId != null) {
+          stockPorProducto[productoId] = {
+            'stock': cantidadDisponible.toInt(),
+            'precio': precioVentaMercado,
+          };
+        }
+      }
+
+      // Agregar datos de stock a cada producto
+      final productosConStock = productos.map((prod) {
+        final datos = stockPorProducto[prod.id];
+        return {
+          'id': prod.id,
+          'nombre': prod.nombre,
+          'codigo': prod.codigo,
+          'imagen': prod.imagen,
+          'stock': datos?['stock'] ?? 0,
+          'precio': datos?['precio'] ?? 0.0,
+        };
+      }).toList();
+
+      String filtro = '';
+
+      if (!mounted) return;
+
+      await showDialog(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final productosFiltrados = productosConStock
+                .where((prod) {
+                  final nombre = (prod['nombre'] ?? '').toString().toLowerCase();
+                  final codigo = (prod['codigo'] ?? '').toString().toLowerCase();
+                  return nombre.contains(filtro.toLowerCase()) || codigo.contains(filtro.toLowerCase());
+                })
+                .toList();
+
+            return Dialog(
+              insetPadding: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: Colors.transparent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Scaffold(
+                  backgroundColor: Colors.transparent,
+                  appBar: AppBar(
+                    title: const Text(
+                      'Seleccionar producto',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    centerTitle: false,
+                    elevation: 0,
+                    backgroundColor: const Color(0xFF2F3A8F),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                      ),
+                    ),
+                    leading: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                  body: Column(
+                    children: [
+                      // Buscador
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          border: Border(bottom: BorderSide(color: Colors.grey[100]!)),
+                        ),
+                        child: TextField(
+                          onChanged: (value) => setStateDialog(() => filtro = value),
+                          decoration: InputDecoration(
+                            hintText: 'Buscar por nombre o código...',
+                            hintStyle: TextStyle(color: Colors.grey[500]),
+                            prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+                            suffixIcon: filtro.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    color: Colors.grey[600],
+                                    onPressed: () => setStateDialog(() => filtro = ''),
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: Color(0xFF2F3A8F), width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                      ),
+
+                      // Lista
+                      Expanded(
+                        child: productosFiltrados.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.search_off, size: 56, color: Colors.grey[300]),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No se encontraron productos',
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                itemCount: productosFiltrados.length,
+                                itemBuilder: (context, idx) {
+                                  final prod = productosFiltrados[idx];
+                                  final precio = (prod['precio'] as num?)?.toDouble() ?? 0.0;
+                                  final stock = prod['stock'] ?? 0;
+
+                                  return Container(
+                                    margin: const EdgeInsets.symmetric(vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.grey[100]!),
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() => _selectedProductoId = prod['id']);
+                                          Navigator.pop(context);
+                                        },
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Row(
+                                            children: [
+                                              // Imagen
+                                              Container(
+                                                width: 70,
+                                                height: 70,
+                                                decoration: BoxDecoration(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  color: Colors.grey[100],
+                                                ),
+                                                child: (prod['imagen'] ?? '').isNotEmpty
+                                                    ? ClipRRect(
+                                                        borderRadius: BorderRadius.circular(10),
+                                                        child: Image.network(
+                                                          prod['imagen'],
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder: (context, error, stackTrace) =>
+                                                              Icon(
+                                                                Icons.image,
+                                                                color: Colors.grey[400],
+                                                                size: 32,
+                                                              ),
+                                                        ),
+                                                      )
+                                                    : Icon(
+                                                        Icons.image,
+                                                        color: Colors.grey[400],
+                                                        size: 32,
+                                                      ),
+                                              ),
+                                              const SizedBox(width: 14),
+
+                                              // Información
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      prod['nombre'] ?? '',
+                                                      style: const TextStyle(
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 14,
+                                                        color: Color(0xFF1F1F1F),
+                                                      ),
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      'Stock: $stock | Precio: S/. ${precio.toStringAsFixed(2)}',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey[600],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Icon(
+                                                Icons.check_circle,
+                                                color: _selectedProductoId == prod['id']
+                                                    ? const Color(0xFF2F3A8F)
+                                                    : Colors.transparent,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   Widget _buildUnitDropdown() {

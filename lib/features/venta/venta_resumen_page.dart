@@ -54,11 +54,48 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
     super.initState();
     Future.microtask(() {
       ref.read(ventaProvider.notifier).cargarClientes();
+      // Restaurar estado guardado del provider
+      final saved = ref.read(resumenVentaProvider);
+      setState(() {
+        tipoVentaSeleccionado = saved.tipoVenta;
+        metodoPagoSeleccionado = saved.metodoPago;
+        tipoComprobanteSeleccionado = saved.tipoComprobante;
+        tipoDocumentoSeleccionado = saved.tipoDocumento;
+        usarClienteExistente = saved.usarClienteExistente;
+        clienteSeleccionadoId = saved.clienteId;
+        clienteSeleccionado = saved.cliente;
+      });
+      // Poblar controllers con valores guardados
+      nombreClienteController.text = saved.nombre;
+      numeroDocumentoController.text = saved.numeroDocumento;
+      telefonoClienteController.text = saved.telefono;
+      emailClienteController.text = saved.email;
+      direccionClienteController.text = saved.direccion;
+      telefonoClienteExistenteController.text = saved.telefonoExistente;
+      emailClienteExistenteController.text = saved.emailExistente;
+      direccionClienteExistenteController.text = saved.direccionExistente;
     });
+    // Detectar tipo de documento cuando el usuario cambia el número
+    numeroDocumentoController.addListener(_actualizarTipoDocumento);
+  }
+
+  /// Detecta automáticamente el tipo de documento según la longitud del número
+  void _actualizarTipoDocumento() {
+    final numero = numeroDocumentoController.text.trim();
+    if (numero.isEmpty) return;
+
+    // Solo detectar si el usuario no ha cambiado manualmente el dropdown
+    // (si hace un cambio manual, no queremos sobreescribirlo)
+    if (numero.length == 8 && tipoDocumentoSeleccionado != '1') {
+      setState(() => tipoDocumentoSeleccionado = '1'); // DNI
+    } else if (numero.length == 11 && tipoDocumentoSeleccionado != '6') {
+      setState(() => tipoDocumentoSeleccionado = '6'); // RUC
+    }
   }
 
   @override
   void dispose() {
+    numeroDocumentoController.removeListener(_actualizarTipoDocumento);
     nombreClienteController.dispose();
     numeroDocumentoController.dispose();
     telefonoClienteController.dispose();
@@ -68,6 +105,54 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
     emailClienteExistenteController.dispose();
     direccionClienteExistenteController.dispose();
     super.dispose();
+  }
+
+  /// Guarda solo el cliente seleccionado en el provider
+  void _guardarCliente(ClienteModel? cliente) {
+    final estadoActual = ref.read(resumenVentaProvider);
+    ref.read(resumenVentaProvider.notifier).actualizar(
+      ResumenVentaState(
+        tipoVenta: estadoActual.tipoVenta,
+        metodoPago: estadoActual.metodoPago,
+        tipoComprobante: estadoActual.tipoComprobante,
+        tipoDocumento: estadoActual.tipoDocumento,
+        usarClienteExistente: estadoActual.usarClienteExistente,
+        clienteId: cliente?.id,
+        cliente: cliente,
+        nombre: estadoActual.nombre,
+        numeroDocumento: estadoActual.numeroDocumento,
+        telefono: estadoActual.telefono,
+        email: estadoActual.email,
+        direccion: estadoActual.direccion,
+        telefonoExistente: estadoActual.telefonoExistente,
+        emailExistente: estadoActual.emailExistente,
+        direccionExistente: estadoActual.direccionExistente,
+      ),
+    );
+  }
+
+  /// Guarda el estado actual del formulario en el provider
+  /// Se llama explícitamente antes de navegar, no en dispose
+  void _guardarEstado() {
+    ref.read(resumenVentaProvider.notifier).actualizar(
+      ResumenVentaState(
+        tipoVenta: tipoVentaSeleccionado,
+        metodoPago: metodoPagoSeleccionado,
+        tipoComprobante: tipoComprobanteSeleccionado,
+        tipoDocumento: tipoDocumentoSeleccionado,
+        usarClienteExistente: usarClienteExistente,
+        clienteId: clienteSeleccionadoId,
+        cliente: clienteSeleccionado,
+        nombre: nombreClienteController.text,
+        numeroDocumento: numeroDocumentoController.text,
+        telefono: telefonoClienteController.text,
+        email: emailClienteController.text,
+        direccion: direccionClienteController.text,
+        telefonoExistente: telefonoClienteExistenteController.text,
+        emailExistente: emailClienteExistenteController.text,
+        direccionExistente: direccionClienteExistenteController.text,
+      ),
+    );
   }
 
   /// Cliente requerido: CREDITO siempre, SUNAT+FACTURA siempre
@@ -157,10 +242,12 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
     ref.listen(ventaProvider, (previous, next) {
       if (next.successMessage != null &&
           previous?.successMessage == null) {
+        // Limpiar carrito y resumen cuando la venta se completa exitosamente
+        ref.read(carritoProvider.notifier).limpiar();
+        ref.read(resumenVentaProvider.notifier).limpiar();
         if (next.ventaCreada?.propuestaSunat != null) {
           context.go('/ventas/propuesta-sunat');
         } else {
-          ref.read(carritoProvider.notifier).limpiar();
           // Navegar a página de comprobante en lugar del historial
           context.go('/ventas/comprobante');
         }
@@ -194,7 +281,18 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
                 isTiendaTitle: esDueno,
                 onTiendaPressed: () => _mostrarSelectorTienda(context, ref, carrito.items.length),
               ),
-              VentaFlowHeader(currentStep: 2, showTiendaHeader: false),
+              VentaFlowHeader(
+                currentStep: 2,
+                showTiendaHeader: false,
+                onStepTap: (stepIndex) {
+                  _guardarEstado();
+                  if (stepIndex == 0) {
+                    context.go('/ventas');
+                  } else if (stepIndex == 1) {
+                    context.go('/ventas/carrito');
+                  }
+                },
+              ),
               Expanded(
                 child: Center(
                   child: Column(
@@ -219,18 +317,37 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
     final screenSize = MediaQuery.of(context).size;
     final isSmallScreen = screenSize.width < 400;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            CustomAppBar(
-              title: 'Ventas',
-              subtitle: 'Registro de operaciones',
-              icon: Icons.point_of_sale,
-              isTiendaTitle: esDueno,
-              onTiendaPressed: () => _mostrarSelectorTienda(context, ref, carrito.items.length),
-            ),
-            VentaFlowHeader(currentStep: 2, showTiendaHeader: false),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _guardarEstado();
+          context.go('/ventas/carrito');
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              CustomAppBar(
+                title: 'Ventas',
+                subtitle: 'Registro de operaciones',
+                icon: Icons.point_of_sale,
+                isTiendaTitle: esDueno,
+                onTiendaPressed: () => _mostrarSelectorTienda(context, ref, carrito.items.length),
+              ),
+              VentaFlowHeader(
+                currentStep: 2,
+                showTiendaHeader: false,
+                onStepTap: (stepIndex) {
+                  _guardarEstado();
+                  if (stepIndex == 0) {
+                    context.go('/ventas');
+                  } else if (stepIndex == 1) {
+                    context.go('/ventas/carrito');
+                  }
+                },
+              ),
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.symmetric(
@@ -272,6 +389,7 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
                 children: [
                   // Buscador de clientes
                   ClienteSearchField(
+                    clienteInicial: clienteSeleccionado,
                     requiereRuc: requiereRuc,
                     clienteRequerido: clienteRequerido,
                     isSmallScreen: isSmallScreen,
@@ -288,6 +406,8 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
                           clienteSeleccionadoId = null;
                         }
                       });
+                      // Guardar cliente inmediatamente en el provider
+                      _guardarCliente(cliente);
                     },
                     onAgregarNuevo: (busqueda) {
                       // Pre-llenar campos inteligentemente
@@ -471,43 +591,75 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
                         ),
                       ),
                       SizedBox(height: isSmallScreen ? 12 : 14),
-                      // Botón de envío
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2F3A8F),
-                            disabledBackgroundColor: Colors.grey[300],
-                            padding: EdgeInsets.symmetric(
-                              vertical: isSmallScreen ? 12 : 14,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                      // Botones de navegación y envío
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: EdgeInsets.symmetric(
+                                  vertical: isSmallScreen ? 12 : 14,
+                                ),
+                                side: const BorderSide(
+                                  color: Color(0xFF2F3A8F),
+                                  width: 1.5,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () {
+                                _guardarEstado();
+                                context.go('/ventas/carrito');
+                              },
+                              child: Text(
+                                '← Carrito',
+                                style: const TextStyle(
+                                  color: Color(0xFF2F3A8F),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
                             ),
                           ),
-                          onPressed: ventaState.isSaving ||
-                                  !formularioValido ||
-                                  tiendaId == null
-                              ? null
-                              : () => _enviarVenta(ref, tiendaId),
-                          child: ventaState.isSaving
-                              ? SizedBox(
-                                  height: isSmallScreen ? 18 : 20,
-                                  width: isSmallScreen ? 18 : 20,
-                                  child: const CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Text(
-                                  'Enviar venta',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: isSmallScreen ? 13 : 14,
-                                  ),
+                          SizedBox(width: isSmallScreen ? 8 : 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2F3A8F),
+                                disabledBackgroundColor: Colors.grey[300],
+                                padding: EdgeInsets.symmetric(
+                                  vertical: isSmallScreen ? 12 : 14,
                                 ),
-                        ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: ventaState.isSaving ||
+                                      !formularioValido ||
+                                      tiendaId == null
+                                  ? null
+                                  : () => _enviarVenta(ref, tiendaId),
+                              child: ventaState.isSaving
+                                  ? SizedBox(
+                                      height: isSmallScreen ? 18 : 20,
+                                      width: isSmallScreen ? 18 : 20,
+                                      child: const CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(
+                                      'Enviar venta',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: isSmallScreen ? 13 : 14,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -516,6 +668,7 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

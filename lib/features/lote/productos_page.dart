@@ -6,6 +6,15 @@ import 'models/stock_model.dart';
 import 'constants/unidad_medida.dart';
 import 'widgets/producto_detail_sheet.dart';
 
+/// Formatea cantidad sin decimales si son .000
+String _formatearCantidad(String cantidad) {
+  final num = double.tryParse(cantidad) ?? 0;
+  if (num == num.toInt()) {
+    return num.toInt().toString();
+  }
+  return num.toStringAsFixed(3).replaceAll(RegExp(r'\.?0+$'), '');
+}
+
 class ProductosPage extends ConsumerStatefulWidget {
   const ProductosPage({super.key});
 
@@ -49,6 +58,19 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
     final stockMap = {
       for (final s in stock) s.productoId: s,
     };
+
+    // Calcular cantidadAveriada por producto desde lotes
+    final averiados = <int, double>{};
+    for (final lote in state.lotes) {
+      for (final lp in lote.productos) {
+        if (lp.isActive) {
+          final cantidad = double.tryParse(lp.cantidadAveriada) ?? 0;
+          if (cantidad > 0) {
+            averiados[lp.producto] = (averiados[lp.producto] ?? 0) + cantidad;
+          }
+        }
+      }
+    }
 
     // Set de productos con factura (cruzar con lotes activos)
     final facturableIds = <int>{
@@ -160,6 +182,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                                   return _ProductoGridCard(
                                     producto: producto,
                                     stock: productoStock,
+                                    cantidadAveriada: averiados[producto.id],
                                     tieneFactura: tieneFactura,
                                     isDueno: isDueno,
                                     onTap: () {
@@ -203,6 +226,7 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
 class _ProductoGridCard extends StatelessWidget {
   final ProductoModel producto;
   final StockModel? stock;
+  final double? cantidadAveriada;
   final bool tieneFactura;
   final bool isDueno;
   final VoidCallback onTap;
@@ -210,6 +234,7 @@ class _ProductoGridCard extends StatelessWidget {
   const _ProductoGridCard({
     required this.producto,
     this.stock,
+    this.cantidadAveriada,
     required this.tieneFactura,
     required this.isDueno,
     required this.onTap,
@@ -329,10 +354,11 @@ class _ProductoGridCard extends StatelessWidget {
             Expanded(
               flex: 2,
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,34 +366,46 @@ class _ProductoGridCard extends StatelessWidget {
                         Text(
                           producto.nombre,
                           style: const TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          producto.codigo,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey,
-                          ),
-                        ),
                         if (stock != null)
                           Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              '${stock!.cantidadDisponible} ${UnidadMedida.getLabel(stock!.unidadMedida)}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF2F3A8F),
-                                fontWeight: FontWeight.w600,
-                              ),
+                            padding: const EdgeInsets.only(top: 1),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Cantidad disponible
+                                Text(
+                                  '${_formatearCantidad(stock!.cantidadDisponible)} ${UnidadMedida.getLabel(stock!.unidadMedida)}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF2F3A8F),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                // Cantidad averiada
+                                if (cantidadAveriada != null && cantidadAveriada! > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      '${cantidadAveriada!.toInt()} averiadas',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.orange[700],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                       ],
                     ),
+                    const Spacer(),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

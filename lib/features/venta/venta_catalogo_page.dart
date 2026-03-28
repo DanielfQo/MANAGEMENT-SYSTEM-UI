@@ -71,6 +71,19 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
       for (final s in stock) s.productoId: s,
     };
 
+    // Calcular cantidadAveriada por producto desde lotes
+    final averiados = <int, double>{};
+    for (final lote in inventario.lotes) {
+      for (final lp in lote.productos) {
+        if (lp.isActive) {
+          final cantidad = double.tryParse(lp.cantidadAveriada) ?? 0;
+          if (cantidad > 0) {
+            averiados[lp.producto] = (averiados[lp.producto] ?? 0) + cantidad;
+          }
+        }
+      }
+    }
+
     // Set de productos con factura (cruzar con lotes activos)
     final facturableIds = <int>{
       for (final lote in inventario.lotes)
@@ -183,6 +196,7 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
                                   stock: productoStock,
                                   tieneFactura: tieneFactura,
                                   enCarrito: enCarrito,
+                                  cantidadAveriada: averiados[producto.id],
                                   onTapNormal: productoStock == null
                                       ? null
                                       : () => _handleProductoTap(
@@ -192,11 +206,7 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
                                             ref,
                                             esAveriado: false,
                                           ),
-                                  onTapAveriado: (productoStock == null ||
-                                          double.tryParse(
-                                                  productoStock
-                                                      .cantidadAveriada) ==
-                                              0)
+                                  onTapAveriado: productoStock == null
                                       ? null
                                       : () => _handleProductoTap(
                                             context,
@@ -213,17 +223,89 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
         ],
         ),
       ),
-      floatingActionButton: carrito.items.isNotEmpty
-          ? FloatingActionButton.extended(
-              backgroundColor: const Color(0xFF2F3A8F),
-              onPressed: () => context.go('/ventas/carrito'),
-              label: Text(
-                'Ver carrito (${carrito.items.length})',
-                style: const TextStyle(color: Colors.white),
-              ),
-              icon: const Icon(
-                Icons.shopping_cart,
-                color: Colors.white,
+      bottomNavigationBar: carrito.items.isNotEmpty
+          ? GestureDetector(
+              onTap: () => context.go('/ventas/carrito'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2F3A8F),
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.grey[300]!,
+                      width: 1,
+                    ),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const Icon(
+                          Icons.shopping_cart,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        Positioned(
+                          right: -8,
+                          top: -8,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '${carrito.items.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Carrito · ${carrito.items.length} producto${carrito.items.length != 1 ? 's' : ''}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            'S/. ${carrito.total.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ],
+                ),
               ),
             )
           : null,
@@ -245,12 +327,6 @@ void _handleProductoTap(
   if (idx >= 0) {
     // Producto ya está en carrito → eliminar
     ref.read(carritoProvider.notifier).eliminarItem(idx);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${producto.nombre} quitado del carrito'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
   } else {
     // Agregar producto al carrito
     final precioVenta =
@@ -265,14 +341,6 @@ void _handleProductoTap(
       esAveriado: esAveriado,
     );
     ref.read(carritoProvider.notifier).agregarItem(item);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${producto.nombre} agregado al carrito${esAveriado ? ' (averiado)' : ''}',
-        ),
-        duration: const Duration(seconds: 1),
-      ),
-    );
   }
 }
 
@@ -295,6 +363,7 @@ class _ProductoVentaCard extends StatelessWidget {
   final StockModel? stock;
   final bool tieneFactura;
   final bool enCarrito;
+  final double? cantidadAveriada;
   final VoidCallback? onTapNormal;
   final VoidCallback? onTapAveriado;
 
@@ -303,6 +372,7 @@ class _ProductoVentaCard extends StatelessWidget {
     this.stock,
     required this.tieneFactura,
     required this.enCarrito,
+    this.cantidadAveriada,
     required this.onTapNormal,
     required this.onTapAveriado,
   });
@@ -314,8 +384,7 @@ class _ProductoVentaCard extends StatelessWidget {
   }
 
   bool _tieneAveriados() {
-    if (stock == null) return false;
-    final cantidad = double.tryParse(stock!.cantidadAveriada) ?? 0;
+    final cantidad = cantidadAveriada ?? 0;
     return cantidad > 0;
   }
 
@@ -377,7 +446,7 @@ class _ProductoVentaCard extends StatelessWidget {
               icono: Icons.warning_amber,
               colorBase: Colors.orange,
               titulo: 'Producto averiado',
-              cantidad: stock!.cantidadAveriada,
+              cantidad: '${cantidadAveriada?.toInt() ?? 0}',
               onTap: () {
                 Navigator.pop(context);
                 onTapAveriado?.call();
@@ -566,7 +635,7 @@ class _ProductoVentaCard extends StatelessWidget {
                   ),
 
                   // Badge de averiados (esquina inferior izquierda)
-                  if (stock != null && _tieneAveriados())
+                  if (_tieneAveriados())
                     Positioned(
                       bottom: 8,
                       left: 8,
@@ -580,7 +649,7 @@ class _ProductoVentaCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          '${int.parse(stock!.cantidadAveriada)} averiados',
+                          '${cantidadAveriada!.toInt()} averiados',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 9,
@@ -626,15 +695,39 @@ class _ProductoVentaCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          stock != null
-                              ? '${formatCantidadStr(stock!.cantidadDisponible)} ${UnidadMedida.getLabel(stock!.unidadMedida)}'
-                              : 'Sin stock',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[600],
+                        if (stock != null)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${formatCantidadStr(stock!.cantidadDisponible)} ${UnidadMedida.getLabel(stock!.unidadMedida)}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              if (cantidadAveriada != null && cantidadAveriada! > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 1),
+                                  child: Text(
+                                    '${cantidadAveriada!.toInt()} averiadas',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.orange[700],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          )
+                        else
+                          Text(
+                            'Sin stock',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
                           ),
-                        ),
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

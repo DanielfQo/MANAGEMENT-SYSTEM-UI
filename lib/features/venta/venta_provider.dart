@@ -4,6 +4,9 @@ import 'package:management_system_ui/features/venta/models/cliente_model.dart';
 import 'package:management_system_ui/features/venta/models/venta_create_model.dart';
 import 'package:management_system_ui/features/venta/models/venta_read_model.dart';
 import 'package:management_system_ui/features/venta/venta_repository.dart';
+import 'package:management_system_ui/features/venta/constants/tipo_venta.dart';
+import 'package:management_system_ui/features/venta/constants/metodo_pago.dart';
+import 'package:management_system_ui/features/venta/constants/tipo_comprobante.dart';
 
 // ============================================================================
 // CARRITO PROVIDERS & NOTIFIER
@@ -292,3 +295,100 @@ final clientesConRucProvider = FutureProvider<List<ClienteModel>>((ref) async {
   final repository = ref.watch(ventaRepositoryProvider);
   return repository.getClientesConRuc(tiendaId);
 });
+
+// ============================================================================
+// RESUMEN VENTA PROVIDER (persistencia de formulario)
+// ============================================================================
+
+/// Estado persistente del formulario de resumen de venta
+/// Se mantiene mientras el usuario navega entre pasos
+class ResumenVentaState {
+  final String tipoVenta;
+  final String metodoPago;
+  final String tipoComprobante;
+  final String tipoDocumento;
+  final bool usarClienteExistente;
+  final int? clienteId;
+  final ClienteModel? cliente;
+  // Valores de TextFields (strings planos)
+  final String nombre;
+  final String numeroDocumento;
+  final String telefono;
+  final String email;
+  final String direccion;
+  final String telefonoExistente;
+  final String emailExistente;
+  final String direccionExistente;
+
+  const ResumenVentaState({
+    this.tipoVenta = TipoVenta.normal,
+    this.metodoPago = MetodoPago.efectivo,
+    this.tipoComprobante = TipoComprobante.boleta,
+    this.tipoDocumento = '1',
+    this.usarClienteExistente = true,
+    this.clienteId,
+    this.cliente,
+    this.nombre = '',
+    this.numeroDocumento = '',
+    this.telefono = '',
+    this.email = '',
+    this.direccion = '',
+    this.telefonoExistente = '',
+    this.emailExistente = '',
+    this.direccionExistente = '',
+  });
+
+  ResumenVentaState copyWith({
+    String? tipoVenta,
+    String? metodoPago,
+    String? tipoComprobante,
+    String? tipoDocumento,
+    bool? usarClienteExistente,
+    int? clienteId,
+    ClienteModel? cliente,
+    String? nombre,
+    String? numeroDocumento,
+    String? telefono,
+    String? email,
+    String? direccion,
+    String? telefonoExistente,
+    String? emailExistente,
+    String? direccionExistente,
+  }) {
+    return ResumenVentaState(
+      tipoVenta: tipoVenta ?? this.tipoVenta,
+      metodoPago: metodoPago ?? this.metodoPago,
+      tipoComprobante: tipoComprobante ?? this.tipoComprobante,
+      tipoDocumento: tipoDocumento ?? this.tipoDocumento,
+      usarClienteExistente: usarClienteExistente ?? this.usarClienteExistente,
+      clienteId: clienteId ?? this.clienteId,
+      cliente: cliente ?? this.cliente,
+      nombre: nombre ?? this.nombre,
+      numeroDocumento: numeroDocumento ?? this.numeroDocumento,
+      telefono: telefono ?? this.telefono,
+      email: email ?? this.email,
+      direccion: direccion ?? this.direccion,
+      telefonoExistente: telefonoExistente ?? this.telefonoExistente,
+      emailExistente: emailExistente ?? this.emailExistente,
+      direccionExistente: direccionExistente ?? this.direccionExistente,
+    );
+  }
+}
+
+class ResumenVentaNotifier extends Notifier<ResumenVentaState> {
+  @override
+  ResumenVentaState build() => const ResumenVentaState();
+
+  void actualizar(ResumenVentaState nuevoEstado) {
+    state = nuevoEstado;
+  }
+
+  void limpiar() {
+    state = const ResumenVentaState();
+  }
+}
+
+final resumenVentaProvider =
+    NotifierProvider<ResumenVentaNotifier, ResumenVentaState>(
+  ResumenVentaNotifier.new,
+);

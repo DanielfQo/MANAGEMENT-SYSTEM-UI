@@ -15,6 +15,7 @@ class VentaCarritoPage extends ConsumerStatefulWidget {
 class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
   final List<TextEditingController> _cantidadControllers = [];
   final List<TextEditingController> _precioControllers = [];
+  final Set<int> _editingPrecioIndices = {}; // Track which prices are being edited
 
   @override
   void dispose() {
@@ -56,9 +57,12 @@ class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
         if (_cantidadControllers[i].text != expectedCantidad) {
           _cantidadControllers[i].text = expectedCantidad;
         }
-        final expectedPrecio = items[i].precioVenta.toStringAsFixed(2);
-        if (_precioControllers[i].text != expectedPrecio) {
-          _precioControllers[i].text = expectedPrecio;
+        // No sincronizar precio si el usuario está editándolo
+        if (!_editingPrecioIndices.contains(i)) {
+          final expectedPrecio = items[i].precioVenta.toStringAsFixed(2);
+          if (_precioControllers[i].text != expectedPrecio) {
+            _precioControllers[i].text = expectedPrecio;
+          }
         }
       }
     }
@@ -127,7 +131,15 @@ class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
               isTiendaTitle: esDueno,
               onTiendaPressed: () => _mostrarSelectorTienda(context, ref, carrito.items.length),
             ),
-            VentaFlowHeader(currentStep: 1, showTiendaHeader: false),
+            VentaFlowHeader(
+              currentStep: 1,
+              showTiendaHeader: false,
+              onStepTap: (stepIndex) {
+                if (stepIndex == 0) {
+                  context.go('/ventas');
+                }
+              },
+            ),
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.symmetric(
@@ -470,6 +482,14 @@ class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
                                                     index, nuevo);
                                           }
                                         },
+                                        onTap: () {
+                                          setState(
+                                              () => _editingPrecioIndices.add(index));
+                                        },
+                                        onEditingComplete: () {
+                                          setState(() =>
+                                              _editingPrecioIndices.remove(index));
+                                        },
                                         decoration: InputDecoration(
                                           isDense: true,
                                           border: OutlineInputBorder(
@@ -628,6 +648,34 @@ class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
                           child: Text(
                             'Agregar más',
                             style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: isSmallScreen ? 12 : 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: isSmallScreen ? 8 : 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            ref.read(carritoProvider.notifier).limpiar();
+                          },
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(
+                              vertical: isSmallScreen ? 10 : 12,
+                            ),
+                            side: BorderSide(
+                              color: Colors.red[400]!,
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Text(
+                            'Limpiar',
+                            style: TextStyle(
+                              color: Colors.red[400],
                               fontWeight: FontWeight.w600,
                               fontSize: isSmallScreen ? 12 : 14,
                             ),

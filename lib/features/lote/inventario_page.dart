@@ -48,10 +48,14 @@ class InventarioPage extends ConsumerWidget {
         ),
       ),
       floatingActionButton: isDueno
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
               backgroundColor: const Color(0xFF1F2A7C),
               onPressed: () => context.go('/lotes/crear'),
-              child: const Icon(Icons.add, color: Colors.white),
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text(
+                'Crear lote',
+                style: TextStyle(color: Colors.white),
+              ),
             )
           : null,
     );

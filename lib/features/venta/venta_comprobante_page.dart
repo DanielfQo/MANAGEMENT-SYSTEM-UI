@@ -346,7 +346,11 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
 
   /// Widget con botones de acciones (imprimir, descargar, ver, etc.)
   Widget _buildAccionesSection(VentaReadModel venta) {
-    final tieneTicket = venta.urlPdfTicket != null && venta.urlPdfTicket!.isNotEmpty;
+    // Para NORMAL/CREDITO: siempre hay ticket disponible via endpoint
+    // Para SUNAT: depende de urlPdfTicket
+    final esVentaNormalOCredito = venta.tipo == 'NORMAL' || venta.tipo == 'CREDITO';
+    final tieneTicket = esVentaNormalOCredito ||
+        (venta.urlPdfTicket != null && venta.urlPdfTicket!.isNotEmpty);
     final tieneAlgunPdf = tieneTicket || (venta.urlPdfA4 != null && venta.urlPdfA4!.isNotEmpty);
 
     return Column(
@@ -665,20 +669,9 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
 
   /// Descarga y muestra el ticket en un dialog con previsualizador
   Future<void> _verComprobante(VentaReadModel venta) async {
-    if (venta.urlPdfTicket == null || venta.urlPdfTicket!.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No hay ticket disponible'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
-
     try {
       final dio = ref.read(dioProvider);
+      final repository = ref.read(ventaRepositoryProvider);
       final printingService = PrintingService(dio);
 
       // Mostrar loading
@@ -689,12 +682,14 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
         ),
       );
 
-      // Descargar el PDF
+      // Obtener el PDF según disponibilidad
       Uint8List bytes;
-      if (venta.urlPdfTicket!.isNotEmpty) {
+      if (venta.urlPdfTicket != null && venta.urlPdfTicket!.isNotEmpty) {
+        // SUNAT con URL: descargar desde la URL
         bytes = await printingService.descargarPdf(venta.urlPdfTicket!);
       } else {
-        throw Exception('No hay URL disponible para el ticket');
+        // NORMAL/CREDITO o SUNAT sin URL: usar endpoint
+        bytes = await repository.descargarTicketPdf(venta.id);
       }
 
       if (bytes.isEmpty) {

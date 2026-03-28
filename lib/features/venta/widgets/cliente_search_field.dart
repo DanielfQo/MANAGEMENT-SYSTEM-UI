@@ -9,6 +9,7 @@ class ClienteSearchField extends ConsumerStatefulWidget {
   final ValueChanged<ClienteModel?> onClienteSeleccionado;
   final ValueChanged<String>? onAgregarNuevo; // Pasa el texto de búsqueda
   final bool isSmallScreen;
+  final ClienteModel? clienteInicial; // Cliente pre-seleccionado al abrir
 
   const ClienteSearchField({
     super.key,
@@ -17,6 +18,7 @@ class ClienteSearchField extends ConsumerStatefulWidget {
     required this.onClienteSeleccionado,
     required this.isSmallScreen,
     this.onAgregarNuevo,
+    this.clienteInicial,
   });
 
   @override
@@ -35,6 +37,31 @@ class _ClienteSearchFieldState extends ConsumerState<ClienteSearchField> {
   void initState() {
     super.initState();
     _searchController = TextEditingController();
+    // Restaurar cliente inicial si se proporcionó
+    if (widget.clienteInicial != null) {
+      _clienteSeleccionado = widget.clienteInicial;
+      _searchController.text =
+          '${widget.clienteInicial!.nombre} | ${widget.clienteInicial!.tipoDocumentoDisplay}: ${widget.clienteInicial!.numeroDocumento}';
+    }
+  }
+
+  @override
+  void didUpdateWidget(ClienteSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si el cliente inicial cambió, actualizar el estado interno
+    if (widget.clienteInicial != oldWidget.clienteInicial) {
+      if (widget.clienteInicial != null) {
+        _clienteSeleccionado = widget.clienteInicial;
+        _searchController.text =
+            '${widget.clienteInicial!.nombre} | ${widget.clienteInicial!.tipoDocumentoDisplay}: ${widget.clienteInicial!.numeroDocumento}';
+      } else {
+        // Si clienteInicial es null, limpiar
+        _clienteSeleccionado = null;
+        _searchController.clear();
+        _clientesEncontrados = [];
+        _mostrarDropdown = false;
+      }
+    }
   }
 
   @override
