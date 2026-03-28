@@ -6,6 +6,8 @@ import 'models/user_me_model.dart';
 
 
 class AuthState {
+  static const _noChange = Object();
+
   final bool isLoading;
   final String? errorMessage;
   final AuthResponseModel? authData; // Guardamos el modelo aquí
@@ -24,14 +26,16 @@ class AuthState {
 
   AuthState copyWith({
     bool? isLoading,
-    String? errorMessage,
+    Object? errorMessage = _noChange,
     AuthResponseModel? authData,
     UserMeModel? userMe,
     int? selectedTiendaId,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: identical(errorMessage, _noChange)
+          ? this.errorMessage
+          : errorMessage as String?,
       authData: authData ?? this.authData,
       userMe: userMe ?? this.userMe,
       selectedTiendaId: selectedTiendaId ?? this.selectedTiendaId,
@@ -42,20 +46,19 @@ class AuthState {
 class AuthNotifier extends Notifier<AuthState> {
 
   late final AuthRepository _repository;
+  late final SessionStorage _storage;
 
   @override
   AuthState build() {
     _repository = ref.watch(authRepositoryProvider);
+    _storage = ref.watch(sessionStorageProvider);
     final sub = authEventController.stream.listen((event) {
       if (event == AuthEvent.logout) {
         state = const AuthState();
       }
     });
     ref.onDispose(() => sub.cancel());
-
-    // Cargar selectedTiendaId del storage en el build
-    final lastTiendaId = StorageService.getLastTiendaIdSync();
-    return AuthState(selectedTiendaId: lastTiendaId);
+    return const AuthState();
   }
 
   Future<void> login(String username, String password) async {
@@ -71,7 +74,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
       if (userData.tiendas.isNotEmpty) {
         // Intentar cargar la última tienda usada
-        final lastTiendaId = await StorageService.getLastTiendaId();
+        final lastTiendaId = await _storage.getLastTiendaId();
         final tiendaExiste = userData.tiendas.any((t) => t.tiendaId == lastTiendaId);
 
         tiendaActivac = tiendaExiste ? lastTiendaId : userData.tiendas.first.tiendaId;
@@ -92,12 +95,12 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
-    await StorageService.clearToken();
+    await _storage.clearAuthTokens();
     state = const AuthState();
   }
 
   Future<void> selectTienda(int tiendaId) async {
-    await StorageService.setLastTiendaId(tiendaId);
+    await _storage.setLastTiendaId(tiendaId);
     state = state.copyWith(selectedTiendaId: tiendaId);
   }
 
