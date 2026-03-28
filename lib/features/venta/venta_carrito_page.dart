@@ -4,6 +4,7 @@ import 'package:management_system_ui/features/tienda/tienda_switcher_sheet.dart'
 import 'package:management_system_ui/features/venta/venta_flow_header.dart';
 import 'package:management_system_ui/features/venta/venta_provider.dart';
 import 'package:management_system_ui/features/lote/constants/unidad_medida.dart';
+import 'package:management_system_ui/features/lote/lote_provider.dart';
 
 class VentaCarritoPage extends ConsumerStatefulWidget {
   const VentaCarritoPage({super.key});
@@ -262,6 +263,18 @@ class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
                                         style: TextStyle(
                                           fontSize: labelFontSize,
                                           color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      // Chip para seleccionar lote
+                                      _LoteSelectorChip(
+                                        item: item,
+                                        itemIndex: index,
+                                        onTap: () => _mostrarSelectorLote(
+                                          context,
+                                          ref,
+                                          item,
+                                          index,
                                         ),
                                       ),
                                       // Toggle de averiado
@@ -728,6 +741,498 @@ class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
       carritoItemsCount: carritoItemsCount,
       onConfirmClearCarrito: () =>
           ref.read(carritoProvider.notifier).limpiar(),
+    );
+  }
+
+  void _mostrarSelectorLote(
+    BuildContext context,
+    WidgetRef ref,
+    CarritoItem item,
+    int itemIndex,
+  ) {
+    final inventario = ref.watch(inventarioProvider);
+
+    // Filtrar lotes que tengan el producto
+    final lotesDisponibles = <Map<String, dynamic>>[];
+    var lotesFifo = <Map<String, dynamic>>[];
+
+    for (final lote in inventario.lotes) {
+      for (final loteProducto in lote.productos) {
+        if (loteProducto.producto == item.productoId && loteProducto.isActive) {
+          lotesDisponibles.add({
+            'id': loteProducto.id,
+            'lote_id': lote.id,
+            'fecha': lote.fechaLlegada,
+            'stock': loteProducto.cantidadDisponible,
+            'precio': loteProducto.precioVentaMercado,
+            'con_factura': loteProducto.conFactura,
+          });
+        }
+      }
+    }
+
+    // Ordenar por fecha (más antiguo primero para FIFO)
+    lotesFifo = List.from(lotesDisponibles)
+      ..sort((a, b) => (a['fecha'] as String).compareTo(b['fecha'] as String));
+
+    // El lote FIFO es el más antiguo
+    final loteFifo = lotesFifo.isNotEmpty ? lotesFifo.first : null;
+    final fechaFifo = loteFifo?['fecha'] as String?;
+    final conFacturaFifo = loteFifo?['con_factura'] as bool? ?? false;
+
+    // Excluir el lote actualmente seleccionado de la lista
+    final lotesParaMostrar = lotesDisponibles
+        .where((lote) => lote['id'] != item.loteProductoId)
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(16),
+        ),
+      ),
+      builder: (context) => _LoteSelectorModalContent(
+        item: item,
+        itemIndex: itemIndex,
+        ref: ref,
+        lotesParaMostrar: lotesParaMostrar,
+        fechaFifo: fechaFifo,
+        conFacturaFifo: conFacturaFifo,
+      ),
+    );
+  }
+}
+
+class _LoteSelectorModalContent extends StatefulWidget {
+  final CarritoItem item;
+  final int itemIndex;
+  final WidgetRef ref;
+  final List<Map<String, dynamic>> lotesParaMostrar;
+  final String? fechaFifo;
+  final bool conFacturaFifo;
+
+  const _LoteSelectorModalContent({
+    required this.item,
+    required this.itemIndex,
+    required this.ref,
+    required this.lotesParaMostrar,
+    required this.fechaFifo,
+    required this.conFacturaFifo,
+  });
+
+  @override
+  State<_LoteSelectorModalContent> createState() =>
+      _LoteSelectorModalContentState();
+}
+
+class _LoteSelectorModalContentState extends State<_LoteSelectorModalContent> {
+  bool ordenAscendente = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Selecciona lote para ${widget.item.productoNombre}',
+            style: Theme.of(context).textTheme.titleLarge,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          // Opción Automática
+          Material(
+            child: InkWell(
+              onTap: () {
+                widget.ref
+                    .read(carritoProvider.notifier)
+                    .actualizarLoteProductoId(widget.itemIndex, null);
+                Navigator.pop(context);
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: widget.item.loteProductoId == null
+                        ? Colors.green
+                        : Colors.grey[300]!,
+                    width: widget.item.loteProductoId == null ? 2 : 1,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  color: widget.item.loteProductoId == null
+                      ? Colors.green[50]
+                      : Colors.white,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      widget.item.loteProductoId == null
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                      color: Colors.green,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Automático',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Llegada: ${widget.fechaFifo ?? 'N/A'}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(4),
+                                  color: widget.conFacturaFifo
+                                      ? Colors.green[100]
+                                      : Colors.orange[100],
+                                ),
+                                child: Text(
+                                  widget.conFacturaFifo
+                                      ? 'Con factura'
+                                      : 'Sin factura',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: widget.conFacturaFifo
+                                        ? Colors.green[700]
+                                        : Colors.orange[700],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Header con filtro
+          if (widget.lotesParaMostrar.isNotEmpty) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Otros lotes',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                PopupMenuButton<bool>(
+                  onSelected: (value) {
+                    setState(() => ordenAscendente = value);
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: false,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.arrow_downward,
+                            size: 16,
+                            color:
+                                !ordenAscendente ? Colors.blue : Colors.grey,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('Más recientes'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: true,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.arrow_upward,
+                            size: 16,
+                            color: ordenAscendente ? Colors.blue : Colors.grey,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('Más antiguos'),
+                        ],
+                      ),
+                    ),
+                  ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          ordenAscendente
+                              ? Icons.arrow_upward
+                              : Icons.arrow_downward,
+                          size: 14,
+                          color: Colors.blue,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          ordenAscendente ? 'Más antiguos' : 'Más recientes',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.blue[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          // Lista de lotes
+          if (widget.lotesParaMostrar.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  'Solo disponible el lote automático',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                itemCount: widget.lotesParaMostrar.length,
+                itemBuilder: (context, idx) {
+                  final lotesOrdenados = List.from(widget.lotesParaMostrar)
+                    ..sort((a, b) {
+                      final cmp = (a['fecha'] as String)
+                          .compareTo(b['fecha'] as String);
+                      return ordenAscendente ? cmp : -cmp;
+                    });
+
+                  final lote = lotesOrdenados[idx];
+                  final isSelected = widget.item.loteProductoId == lote['id'];
+
+                  return Material(
+                    child: InkWell(
+                      onTap: () {
+                        widget.ref
+                            .read(carritoProvider.notifier)
+                            .actualizarLoteProductoId(
+                                widget.itemIndex, lote['id'] as int);
+                        Navigator.pop(context);
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.blue
+                                : Colors.grey[300]!,
+                            width: isSelected ? 2 : 1,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          color: isSelected ? Colors.blue[50] : Colors.white,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: Colors.blue,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Llegada: ${lote['fecha']}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                          color: (lote['con_factura'] as bool)
+                                              ? Colors.green[100]
+                                              : Colors.orange[100],
+                                        ),
+                                        child: Text(
+                                          (lote['con_factura'] as bool)
+                                              ? 'Con factura'
+                                              : 'Sin factura',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: (lote['con_factura']
+                                                    as bool)
+                                                ? Colors.green[700]
+                                                : Colors.orange[700],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Stock: ${lote['stock']}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoteSelectorChip extends ConsumerWidget {
+  final CarritoItem item;
+  final int itemIndex;
+  final VoidCallback onTap;
+
+  const _LoteSelectorChip({
+    required this.item,
+    required this.itemIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final inventario = ref.watch(inventarioProvider);
+
+    // Obtener fecha del lote actual
+    String? fechaLote;
+
+    if (item.loteProductoId == null) {
+      // FIFO: buscar el lote más antiguo
+      final lotesDelProducto = <Map<String, dynamic>>[];
+      for (final lote in inventario.lotes) {
+        for (final loteProducto in lote.productos) {
+          if (loteProducto.producto == item.productoId &&
+              loteProducto.isActive) {
+            lotesDelProducto.add({
+              'fecha': lote.fechaLlegada,
+            });
+          }
+        }
+      }
+      if (lotesDelProducto.isNotEmpty) {
+        lotesDelProducto
+            .sort((a, b) => (a['fecha'] as String).compareTo(b['fecha']));
+        fechaLote = lotesDelProducto.first['fecha'];
+      }
+    } else {
+      // Lote específico: buscar su fecha
+      for (final lote in inventario.lotes) {
+        for (final loteProducto in lote.productos) {
+          if (loteProducto.id == item.loteProductoId) {
+            fechaLote = lote.fechaLlegada;
+            break;
+          }
+        }
+      }
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.blue[300]!),
+          borderRadius: BorderRadius.circular(6),
+          color: Colors.blue[50],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.inbox,
+              size: 14,
+              color: Colors.blue[700],
+            ),
+            const SizedBox(width: 6),
+            Text(
+              fechaLote ?? 'N/A',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.blue[700],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.edit,
+              size: 12,
+              color: Colors.blue[700],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
