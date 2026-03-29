@@ -750,7 +750,7 @@ class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
     CarritoItem item,
     int itemIndex,
   ) {
-    final inventario = ref.watch(inventarioProvider);
+    final inventario = ref.read(inventarioProvider);
 
     // Filtrar lotes que tengan el producto con stock disponible
     final lotesDisponibles = <Map<String, dynamic>>[];

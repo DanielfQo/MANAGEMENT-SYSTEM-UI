@@ -1297,7 +1297,7 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
     try {
       await ref
           .read(ventaProvider.notifier)
-          .confirmarSunat(venta.id, items);
+          .confirmarSunat(venta.numeroComprobante, items);
 
       if (!context.mounted) return;
 

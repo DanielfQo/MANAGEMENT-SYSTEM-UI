@@ -492,7 +492,7 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
       if (venta.urlPdfTicket != null && venta.urlPdfTicket!.isNotEmpty) {
         bytes = await printingService.descargarPdf(venta.urlPdfTicket!);
       } else {
-        bytes = await repository.descargarTicketPdf(venta.id);
+        bytes = await repository.descargarTicketPdf(venta.numeroComprobante);
       }
 
       if (bytes.isEmpty) {
@@ -632,7 +632,7 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
         bytes = await printingService.descargarPdf(venta.urlPdfTicket!);
       } else {
         // NORMAL/CREDITO o SUNAT sin URL: usar endpoint
-        bytes = await repository.descargarTicketPdf(venta.id);
+        bytes = await repository.descargarTicketPdf(venta.numeroComprobante);
       }
 
       if (bytes.isEmpty) {
@@ -689,7 +689,7 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
         bytes = await printingService.descargarPdf(venta.urlPdfTicket!);
       } else {
         // NORMAL/CREDITO o SUNAT sin URL: usar endpoint
-        bytes = await repository.descargarTicketPdf(venta.id);
+        bytes = await repository.descargarTicketPdf(venta.numeroComprobante);
       }
 
       if (bytes.isEmpty) {

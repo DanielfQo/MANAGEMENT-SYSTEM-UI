@@ -241,13 +241,13 @@ class VentaNotifier extends Notifier<VentaState> {
   }
 
   Future<void> confirmarSunat(
-    int ventaId,
+    String numeroComprobante,
     List<ConfirmarSunatItem> items,
   ) async {
     state = state.copyWith(isSaving: true, errorMessage: null);
     try {
       final ventaActualizada = await _repository.confirmarSunat(
-        ventaId,
+        numeroComprobante,
         items,
       );
       state = state.copyWith(
@@ -263,15 +263,56 @@ class VentaNotifier extends Notifier<VentaState> {
     }
   }
 
-  Future<void> cancelarVenta(int ventaId) async {
+  Future<void> cancelarVenta(String numeroComprobante) async {
     state = state.copyWith(isSaving: true, errorMessage: null);
     try {
-      await _repository.cancelarVenta(ventaId);
+      await _repository.cancelarVenta(numeroComprobante);
       state = state.copyWith(
         isSaving: false,
         successMessage: 'Venta cancelada exitosamente',
       );
-      // Recargar historial
+      await cargarVentas();
+    } catch (e) {
+      state = state.copyWith(
+        isSaving: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  Future<void> anularVenta(
+    String numeroComprobante, {
+    required String codigoTipo,
+    required String motivo,
+  }) async {
+    state = state.copyWith(isSaving: true, errorMessage: null);
+    try {
+      await _repository.anularVenta(
+        numeroComprobante,
+        codigoTipo: codigoTipo,
+        motivo: motivo,
+      );
+      state = state.copyWith(
+        isSaving: false,
+        successMessage: 'Venta anulada exitosamente',
+      );
+      await cargarVentas();
+    } catch (e) {
+      state = state.copyWith(
+        isSaving: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  Future<void> emitirNotaCredito(String numeroComprobante) async {
+    state = state.copyWith(isSaving: true, errorMessage: null);
+    try {
+      await _repository.emitirNotaCredito(numeroComprobante);
+      state = state.copyWith(
+        isSaving: false,
+        successMessage: 'Nota de crédito emitida exitosamente',
+      );
       await cargarVentas();
     } catch (e) {
       state = state.copyWith(

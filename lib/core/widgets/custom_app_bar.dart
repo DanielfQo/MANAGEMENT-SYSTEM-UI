@@ -29,8 +29,22 @@ class CustomAppBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userMe = ref.watch(authProvider).userMe;
+    final authState = ref.watch(authProvider);
+    final userMe = authState.userMe;
     final esDueno = userMe?.isDueno ?? false;
+
+    // Obtener nombre de la tienda actual
+    String tiendaNombre = 'Tienda';
+    if (isTiendaTitle && userMe != null && userMe.tiendas.isNotEmpty) {
+      try {
+        final tiendaActual = userMe.tiendas
+            .firstWhere((t) => t.tiendaId == authState.selectedTiendaId);
+        tiendaNombre = tiendaActual.tiendaNombre;
+      } catch (e) {
+        // Si no encuentra la tienda, usar la primera
+        tiendaNombre = userMe.tiendas.first.tiendaNombre;
+      }
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -42,31 +56,37 @@ class CustomAppBar extends ConsumerWidget {
               onPressed: onBack,
             )
           else
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: AppColors.primary,
-              child: Icon(icon, color: Colors.white),
+            GestureDetector(
+              onTap: (isTiendaTitle && esDueno) ? onTiendaPressed : null,
+              child: CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.primary,
+                child: Icon(icon, color: Colors.white),
+              ),
             ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+            child: GestureDetector(
+              onTap: (isTiendaTitle && esDueno) ? onTiendaPressed : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isTiendaTitle ? tiendaNombre : title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
-                ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 13,
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 13,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           if (badge != null)

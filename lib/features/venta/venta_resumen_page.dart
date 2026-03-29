@@ -53,7 +53,6 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(ventaProvider.notifier).cargarClientes();
       // Restaurar estado guardado del provider
       final saved = ref.read(resumenVentaProvider);
       setState(() {

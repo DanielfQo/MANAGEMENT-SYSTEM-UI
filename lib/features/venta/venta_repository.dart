@@ -73,10 +73,10 @@ class VentaRepository {
     }
   }
 
-  /// GET /ventas/{id}/ - Detalle de una venta
-  Future<VentaReadModel> getVentaDetalle(int id) async {
+  /// GET /ventas/{numero_comprobante}/ - Detalle de una venta
+  Future<VentaReadModel> getVentaDetalle(String numeroComprobante) async {
     try {
-      final response = await _dio.get('sales/ventas/$id/');
+      final response = await _dio.get('sales/ventas/$numeroComprobante/');
       return VentaReadModel.fromJson(response.data);
     } on DioException catch (e) {
       final errorMsg =
@@ -85,10 +85,10 @@ class VentaRepository {
     }
   }
 
-  /// DELETE /ventas/{id}/ - Cancelar venta (soft delete)
-  Future<void> cancelarVenta(int id) async {
+  /// DELETE /ventas/{numero_comprobante}/ - Cancelar venta NORMAL/CRÉDITO (soft delete)
+  Future<void> cancelarVenta(String numeroComprobante) async {
     try {
-      await _dio.delete('sales/ventas/$id/');
+      await _dio.delete('sales/ventas/$numeroComprobante/');
     } on DioException catch (e) {
       final errorMsg =
           _extractErrorMessage(e, 'Error al cancelar venta');
@@ -96,14 +96,48 @@ class VentaRepository {
     }
   }
 
-  /// POST /ventas/{id}/confirmar-sunat/ - Confirmar propuesta SUNAT
+  /// POST /ventas/{numero_comprobante}/anular/ - Anular venta SUNAT aceptada (mismo día)
+  Future<VentaReadModel> anularVenta(
+    String numeroComprobante, {
+    required String codigoTipo,
+    required String motivo,
+  }) async {
+    try {
+      final response = await _dio.post(
+        'sales/ventas/$numeroComprobante/anular/',
+        data: {
+          'codigo_tipo': codigoTipo,
+          'motivo': motivo,
+        },
+      );
+      return VentaReadModel.fromJson(response.data);
+    } on DioException catch (e) {
+      final errorMsg = _extractErrorMessage(e, 'Error al anular venta');
+      throw Exception(errorMsg);
+    }
+  }
+
+  /// POST /ventas/{numero_comprobante}/nota-credito/ - Nota de crédito para ventas SUNAT de días anteriores
+  Future<VentaReadModel> emitirNotaCredito(String numeroComprobante) async {
+    try {
+      final response = await _dio.post(
+        'sales/ventas/$numeroComprobante/nota-credito/',
+      );
+      return VentaReadModel.fromJson(response.data);
+    } on DioException catch (e) {
+      final errorMsg = _extractErrorMessage(e, 'Error al emitir nota de crédito');
+      throw Exception(errorMsg);
+    }
+  }
+
+  /// POST /ventas/{numero_comprobante}/confirmar-sunat/ - Confirmar propuesta SUNAT
   Future<VentaReadModel> confirmarSunat(
-    int id,
+    String numeroComprobante,
     List<ConfirmarSunatItem> items,
   ) async {
     try {
       final response = await _dio.post(
-        'sales/ventas/$id/confirmar-sunat/',
+        'sales/ventas/$numeroComprobante/confirmar-sunat/',
         data: {
           'propuesta': items.map((item) => item.toJson()).toList(),
         },
@@ -213,12 +247,12 @@ class VentaRepository {
     }
   }
 
-  /// GET /ventas/{id}/ticket/ - Descargar ticket PDF de venta NORMAL/CREDITO
+  /// GET /ventas/{numero_comprobante}/ticket/ - Descargar ticket PDF de venta NORMAL/CREDITO
   /// Retorna los bytes del PDF directamente
-  Future<Uint8List> descargarTicketPdf(int ventaId) async {
+  Future<Uint8List> descargarTicketPdf(String numeroComprobante) async {
     try {
       final response = await _dio.get<List<int>>(
-        'sales/ventas/$ventaId/ticket/',
+        'sales/ventas/$numeroComprobante/ticket/',
         options: Options(
           responseType: ResponseType.bytes,
           followRedirects: true,
