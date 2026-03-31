@@ -19,7 +19,7 @@ class HomePage extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               /// HEADER - CustomAppBar Unificado
-              CustomAppBar( // TODO: Colocar un feedback cuando se cambie de tienda, ademas deberia haber un panel general de todas las tiendas
+              CustomAppBar(
                 title: 'Inicio',
                 subtitle: 'Panel de control',
                 icon: Icons.home,
@@ -50,10 +50,10 @@ class HomePage extends ConsumerWidget {
                 children: [
                   _actionButton(
                     context,
-                    icon: Icons.shopping_cart,
-                    label: "Nueva Venta",
+                    icon: Icons.point_of_sale,
+                    label: "Operaciones",
                     color: AppColors.primary,
-                    onTap: () => context.go('/ventas'),
+                    onTap: () => context.go('/operaciones'),
                   ),
                   const SizedBox(width: 12),
                   _actionButton(

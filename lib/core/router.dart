@@ -16,6 +16,10 @@ import 'package:management_system_ui/features/venta/venta_comprobante_page.dart'
 import 'package:management_system_ui/features/impresora/impresora_config_page.dart';
 import 'package:management_system_ui/features/caja/caja_page.dart';
 import 'package:management_system_ui/features/caja/caja_historial_page.dart';
+import 'package:management_system_ui/features/operaciones/operaciones_hub_page.dart';
+import 'package:management_system_ui/features/servicio/servicio_formulario_page.dart';
+import 'package:management_system_ui/features/servicio/servicio_resumen_page.dart';
+import 'package:management_system_ui/features/servicio/servicio_comprobante_page.dart';
 import 'package:management_system_ui/features/caja/caja_resumen_page.dart';
 import 'package:management_system_ui/features/caja/caja_cierre_page.dart';
 import 'package:management_system_ui/features/invitation/invitation_form_page.dart';
@@ -52,6 +56,11 @@ class AppRoutes {
   static const ventasResumen = '/ventas/resumen';
   static const ventasPropuestaSunat = '/ventas/propuesta-sunat';
   static const ventasComprobante = '/ventas/comprobante';
+
+  static const operaciones = '/operaciones';
+  static const servicios = '/servicios';
+  static const serviciosResumen = '/servicios/resumen';
+  static const serviciosComprobante = '/servicios/comprobante';
 
   static const caja = '/caja';
   static const cajaHistorial = '/caja/historial';
@@ -103,7 +112,7 @@ class MainShell extends ConsumerWidget {
       const BottomNavigationBarItem(
         icon: Icon(Icons.point_of_sale_outlined),
         activeIcon: Icon(Icons.point_of_sale),
-        label: 'Ventas',
+        label: 'Operaciones',
       ),
       const BottomNavigationBarItem(
         icon: Icon(Icons.receipt_outlined),
@@ -139,7 +148,7 @@ class MainShell extends ConsumerWidget {
               context.go(AppRoutes.lotes);
               break;
             case 2:
-              context.go(AppRoutes.ventas);
+              context.go(AppRoutes.operaciones);
               break;
             case 3:
               context.go(AppRoutes.caja);
@@ -163,7 +172,11 @@ class MainShell extends ConsumerWidget {
       return 1;
     }
 
-    if (location.startsWith(AppRoutes.ventas)) return 2;
+    if (location.startsWith(AppRoutes.operaciones) ||
+        location.startsWith(AppRoutes.ventas) ||
+        location.startsWith(AppRoutes.servicios)) {
+      return 2;
+    }
     if (location.startsWith(AppRoutes.caja)) return 3;
 
     if (canViewUsers &&
@@ -243,6 +256,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.productos,
             builder: (context, state) => const ProductosPage(),
+          ),
+          GoRoute(
+            path: AppRoutes.operaciones,
+            builder: (context, state) => const OperacionesHubPage(),
+          ),
+          GoRoute(
+            path: AppRoutes.servicios,
+            builder: (context, state) => const ServicioFormularioPage(),
+          ),
+          GoRoute(
+            path: AppRoutes.serviciosResumen,
+            builder: (context, state) => const ServicioResumenPage(),
+          ),
+          GoRoute(
+            path: AppRoutes.serviciosComprobante,
+            builder: (context, state) => const ServicioComprobantePage(),
           ),
           GoRoute(
             path: AppRoutes.ventas,

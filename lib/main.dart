@@ -1,6 +1,7 @@
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'dart:async';
 import 'core/router.dart';
 // Importa tus carpetas de core cuando las tengas listas
@@ -69,6 +70,15 @@ class _MyAppState extends ConsumerState<MyApp> {
         useMaterial3: true,
         colorSchemeSeed: Colors.blue,
       ),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'PE'),
+        Locale('es'),
+        Locale('en'),
+      ],
       routerConfig: router,
     );
   }
