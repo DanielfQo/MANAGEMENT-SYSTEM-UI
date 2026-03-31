@@ -448,53 +448,6 @@ class _LoteFormPageState extends ConsumerState<LoteFormPage> {
     );
   }
 
-  Widget _buildDecimalField({
-    required TextEditingController controller,
-    required String label,
-    required IconData prefixIcon,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType:
-          const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-      ],
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: 'Déjalo vacío para 0',
-        prefixIcon: Icon(prefixIcon, color: const Color(0xFF1F2A7C)),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF1F2A7C)),
-        ),
-      ),
-      validator: (value) {
-        // Si está vacío, válido (se envía como 0)
-        if (value == null || value.isEmpty) {
-          return null;
-        }
-        if (double.tryParse(value) == null) {
-          return 'Ingresa un número válido';
-        }
-        if (double.parse(value) < 0) {
-          return 'No puede ser negativo';
-        }
-        return null;
-      },
-    );
-  }
-
   Widget _buildQuantityFieldWithButtons({
     required TextEditingController controller,
     required String label,
@@ -715,50 +668,6 @@ class _LoteFormPageState extends ConsumerState<LoteFormPage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildProductDropdown(List<ProductoModel> productos) {
-    return DropdownButtonFormField<int>(
-      initialValue: _selectedProductoId,
-      decoration: InputDecoration(
-        labelText: 'Selecciona un producto',
-        prefixIcon: const Icon(Icons.shopping_cart,
-            color: Color(0xFF1F2A7C)),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF1F2A7C)),
-        ),
-      ),
-      items: productos.map((prod) {
-        return DropdownMenuItem<int>(
-          value: prod.id,
-          child: Text(
-            prod.nombre,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        );
-      }).toList(),
-      onChanged: (value) {
-        setState(() => _selectedProductoId = value);
-      },
-      validator: (value) {
-        if (_usarProductoExistente && value == null) {
-          return 'Selecciona un producto';
-        }
-        return null;
-      },
     );
   }
 
