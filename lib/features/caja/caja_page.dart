@@ -78,9 +78,9 @@ class CajaPage extends ConsumerWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.history),
-                label: const Text('Ver Historial de Ventas'),
+                label: const Text('Ver Historial de Operaciones'),
                 onPressed: () =>
-                    context.go('/caja/historial'),
+                    context.go('/operaciones'),
               ),
             ),
             const SizedBox(height: 12),

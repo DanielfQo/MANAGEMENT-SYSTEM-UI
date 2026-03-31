@@ -294,7 +294,7 @@ class _VentaDetalleSheet extends ConsumerWidget {
                 const Text('Selecciona el código de anulación:'),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: codigoSeleccionado,
+                  initialValue: codigoSeleccionado,
                   decoration: const InputDecoration(
                     hintText: 'Selecciona un código',
                     border: OutlineInputBorder(),
