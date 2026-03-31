@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'dart:convert';
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/servicio/models/servicio_create_model.dart';
 import 'package:management_system_ui/features/servicio/models/servicio_read_model.dart';
@@ -25,7 +24,8 @@ class ServicioRepository {
   ServicioRepository(this._dio);
 
   /// POST /services/servicio/ - Crear nuevo servicio
-  /// Retorna ServicioConPdf con los datos y el PDF (si es NORMAL/CREDITO)
+  /// Ahora siempre devuelve JSON para todos los tipos (NORMAL, CREDITO, SUNAT)
+  /// El PDF se obtiene on-demand mediante GET /services/servicio/{numero}/ticket/
   Future<ServicioConPdf> crearServicio(ServicioCreateModel servicio) async {
     final validationError = servicio.validate();
     if (validationError != null) {
@@ -36,66 +36,14 @@ class ServicioRepository {
       final response = await _dio.post(
         'services/servicio/',
         data: servicio.toJson(),
-        options: Options(
-          responseType: ResponseType.bytes,
-          validateStatus: (status) => status! < 500,
-        ),
       );
 
-      // SUNAT retorna JSON (parseado como bytes y luego convertido a JSON)
-      if (response.data is List<int>) {
-        try {
-          final jsonString = String.fromCharCodes(response.data as List<int>);
-          final jsonData = jsonDecode(jsonString);
-          if (jsonData is Map<String, dynamic>) {
-            return ServicioConPdf(
-              servicio: ServicioReadModel.fromJson(jsonData),
-              pdfBytes: null,
-            );
-          }
-        } catch (_) {
-          // No es JSON, continuar como PDF
-        }
-      }
-
-      // NORMAL/CREDITO retornan PDF directamente
-      final pdfBytes = Uint8List.fromList(response.data as List<int>);
-
-      // Intentar extraer numero_comprobante del header content-disposition
-      // Ejemplo: filename="servicio_10.pdf" → numero_comprobante = "10"
-      String? numeroComprobante;
-      final contentDispositionList = response.headers['content-disposition'];
-      if (contentDispositionList != null && contentDispositionList.isNotEmpty) {
-        final contentDisposition = contentDispositionList.first;
-        final match = RegExp(r'servicio_(\d+)\.pdf').firstMatch(contentDisposition);
-        if (match != null) {
-          numeroComprobante = match.group(1);
-        }
-      }
-
-      // Obtener los datos completos del servicio
-      final servicios = await getServicios(tiendaId: servicio.tiendaId);
-      if (servicios.isNotEmpty) {
-        // Si se extrajo el número, buscar ese servicio específico
-        if (numeroComprobante != null) {
-          final servicioCreado = servicios.firstWhere(
-            (s) => s.numeroComprobante == numeroComprobante,
-            orElse: () => servicios.first,
-          );
-          return ServicioConPdf(
-            servicio: servicioCreado,
-            pdfBytes: pdfBytes,
-          );
-        }
-
-        // Si no se extrajo el número, retornar el más reciente
-        return ServicioConPdf(
-          servicio: servicios.first,
-          pdfBytes: pdfBytes,
-        );
-      }
-
-      throw Exception('No se pudo obtener los datos del servicio creado.');
+      // El endpoint siempre devuelve JSON ahora
+      final servicioCreado = ServicioReadModel.fromJson(response.data);
+      return ServicioConPdf(
+        servicio: servicioCreado,
+        pdfBytes: null,  // PDF se obtiene on-demand, no después del POST
+      );
     } on DioException catch (e) {
       final errorMsg = _extractErrorMessage(e, 'Error al crear el servicio');
       throw Exception(errorMsg);

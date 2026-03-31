@@ -9,6 +9,7 @@ import 'package:management_system_ui/features/impresora/ticket_converter.dart';
 import 'package:management_system_ui/features/servicio/models/servicio_read_model.dart';
 import 'package:management_system_ui/features/servicio/servicio_flow_header.dart';
 import 'package:management_system_ui/features/servicio/servicio_provider.dart';
+import 'package:management_system_ui/features/servicio/servicio_repository.dart';
 import 'package:management_system_ui/features/venta/services/printing_service.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -537,19 +538,18 @@ class _ServicioComprobantePageState
     });
 
     try {
-      // Obtener PDF del provider primero (ya está en memoria)
-      final pdfBytes = ref.read(ticketPdfProvider);
-      Uint8List? bytes;
+      Uint8List bytes;
 
-      if (pdfBytes != null && pdfBytes.isNotEmpty) {
-        bytes = pdfBytes;
-      } else if (servicio.urlPdfTicket != null &&
+      if (servicio.urlPdfTicket != null &&
           servicio.urlPdfTicket!.isNotEmpty) {
+        // SUNAT: usar URL del JSON response
         final dio = ref.read(dioProvider);
         final printingService = PrintingService(dio);
         bytes = await printingService.descargarPdf(servicio.urlPdfTicket!);
       } else {
-        throw Exception('No hay ticket disponible para imprimir');
+        // NORMAL/CREDITO: llamar endpoint /ticket/
+        final repository = ref.read(servicioRepositoryProvider);
+        bytes = await repository.descargarTicketPdf(servicio.numeroComprobante);
       }
 
       if (bytes.isEmpty) {
@@ -671,19 +671,18 @@ class _ServicioComprobantePageState
     });
 
     try {
-      // Obtener PDF del provider primero (ya está en memoria)
-      final pdfBytes = ref.read(ticketPdfProvider);
-      Uint8List? bytes;
+      Uint8List bytes;
 
-      if (pdfBytes != null && pdfBytes.isNotEmpty) {
-        bytes = pdfBytes;
-      } else if (servicio.urlPdfTicket != null &&
+      if (servicio.urlPdfTicket != null &&
           servicio.urlPdfTicket!.isNotEmpty) {
+        // SUNAT: usar URL del JSON response
         final dio = ref.read(dioProvider);
         final printingService = PrintingService(dio);
         bytes = await printingService.descargarPdf(servicio.urlPdfTicket!);
       } else {
-        throw Exception('No hay ticket disponible para descargar');
+        // NORMAL/CREDITO: llamar endpoint /ticket/
+        final repository = ref.read(servicioRepositoryProvider);
+        bytes = await repository.descargarTicketPdf(servicio.numeroComprobante);
       }
 
       if (bytes.isEmpty) {
@@ -717,20 +716,18 @@ class _ServicioComprobantePageState
 
   Future<void> _verComprobante(ServicioReadModel servicio) async {
     try {
-      // Primero intentar obtener el PDF del provider (ya está en memoria)
-      final pdfBytes = ref.read(ticketPdfProvider);
-
       Uint8List bytes;
-      if (pdfBytes != null && pdfBytes.isNotEmpty) {
-        bytes = pdfBytes;
-      } else if (servicio.urlPdfTicket != null &&
+
+      if (servicio.urlPdfTicket != null &&
           servicio.urlPdfTicket!.isNotEmpty) {
-        // Fallback: descargar desde URL si está disponible (SUNAT)
+        // SUNAT: usar URL del JSON response
         final dio = ref.read(dioProvider);
         final printingService = PrintingService(dio);
         bytes = await printingService.descargarPdf(servicio.urlPdfTicket!);
       } else {
-        throw Exception('No hay ticket disponible para este servicio');
+        // NORMAL/CREDITO: llamar endpoint /ticket/
+        final repository = ref.read(servicioRepositoryProvider);
+        bytes = await repository.descargarTicketPdf(servicio.numeroComprobante);
       }
 
       if (bytes.isEmpty) {

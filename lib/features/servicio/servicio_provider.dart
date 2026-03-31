@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'package:management_system_ui/features/venta/models/cliente_model.dart';
@@ -138,11 +137,6 @@ class ServicioNotifier extends Notifier<ServicioState> {
     state = state.copyWith(isSaving: true, errorMessage: null);
     try {
       final servicioConPdf = await _repository.crearServicio(servicio);
-
-      // Guardar el PDF en el provider si existe (NORMAL/CREDITO)
-      if (servicioConPdf.pdfBytes != null) {
-        ref.read(ticketPdfProvider.notifier).guardarTicketPdf(servicioConPdf.pdfBytes!);
-      }
 
       state = state.copyWith(
         isSaving: false,
@@ -322,21 +316,3 @@ final resumenServicioProvider =
 // ============================================================================
 // TICKET PDF PROVIDER (almacena temporalmente el PDF del ticket generado)
 // ============================================================================
-
-class TicketPdfNotifier extends Notifier<Uint8List?> {
-  @override
-  Uint8List? build() => null;
-
-  void guardarTicketPdf(Uint8List pdfBytes) {
-    state = pdfBytes;
-  }
-
-  void limpiar() {
-    state = null;
-  }
-}
-
-final ticketPdfProvider =
-    NotifierProvider<TicketPdfNotifier, Uint8List?>(
-  TicketPdfNotifier.new,
-);
