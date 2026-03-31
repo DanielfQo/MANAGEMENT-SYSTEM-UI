@@ -45,7 +45,7 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
               const Text('No hay venta registrada'),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () => context.go('/caja/historial'),
+                onPressed: () => context.go('/operaciones'),
                 child: const Text('Ir al historial'),
               ),
             ],
@@ -156,9 +156,9 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
                     backgroundColor: const Color(0xFF2F3A8F),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  onPressed: () => context.go('/caja/historial'),
+                  onPressed: () => context.go('/operaciones'),
                   child: const Text(
-                    'Ir al historial de cajas',
+                    'Volver a operaciones',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,

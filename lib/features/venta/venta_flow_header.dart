@@ -166,7 +166,7 @@ class VentaFlowHeader extends ConsumerWidget {
       children: [
         if (isClickable)
           GestureDetector(
-            onTap: () => onTap!(index),
+            onTap: () => onTap(index),
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: container,

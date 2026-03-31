@@ -521,7 +521,7 @@ class _VentaDetalleSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: codigoSeleccionado,
+                initialValue: codigoSeleccionado,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8)),
