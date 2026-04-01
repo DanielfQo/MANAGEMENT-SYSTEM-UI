@@ -14,14 +14,16 @@ import 'package:management_system_ui/features/venta/venta_resumen_page.dart';
 import 'package:management_system_ui/features/venta/venta_propuesta_sunat_page.dart';
 import 'package:management_system_ui/features/venta/venta_comprobante_page.dart';
 import 'package:management_system_ui/features/impresora/impresora_config_page.dart';
-import 'package:management_system_ui/features/caja/caja_page.dart';
-import 'package:management_system_ui/features/caja/caja_historial_page.dart';
 import 'package:management_system_ui/features/operaciones/operaciones_hub_page.dart';
 import 'package:management_system_ui/features/servicio/servicio_formulario_page.dart';
 import 'package:management_system_ui/features/servicio/servicio_resumen_page.dart';
 import 'package:management_system_ui/features/servicio/servicio_comprobante_page.dart';
-import 'package:management_system_ui/features/caja/caja_resumen_page.dart';
-import 'package:management_system_ui/features/caja/caja_cierre_page.dart';
+import 'package:management_system_ui/features/finanzas/finanzas_hub_page.dart';
+import 'package:management_system_ui/features/finanzas/caja_resumen_page.dart';
+import 'package:management_system_ui/features/finanzas/caja_cierre_page.dart';
+import 'package:management_system_ui/features/finanzas/deudas_page.dart';
+import 'package:management_system_ui/features/finanzas/pago_resumen_page.dart';
+import 'package:management_system_ui/features/finanzas/gastos_page.dart';
 import 'package:management_system_ui/features/invitation/invitation_form_page.dart';
 import 'package:management_system_ui/features/invitation/invitation_accept_page.dart';
 import 'package:management_system_ui/features/onboarding/profile_complete_page.dart';
@@ -62,10 +64,15 @@ class AppRoutes {
   static const serviciosResumen = '/servicios/resumen';
   static const serviciosComprobante = '/servicios/comprobante';
 
-  static const caja = '/caja';
-  static const cajaHistorial = '/caja/historial';
-  static const cajaResumen = '/caja/resumen';
-  static const cajaCierre = '/caja/cierre';
+  static const finanzas = '/finanzas';
+  static const finanzasCajaResumen = '/finanzas/caja/resumen';
+  static const finanzasCajaCierre = '/finanzas/caja/cierre';
+  static const finanzasDeudas = '/finanzas/deudas';
+  static const finanzasPagoResumen = '/finanzas/pago-resumen';
+  static const finanzasGastos = '/finanzas/gastos';
+
+  // Backwards compatibility - deprecated
+  static const caja = '/finanzas';
 
   static const configImpresora = '/config/impresora';
   static const tiendas = '/tiendas';
@@ -115,9 +122,9 @@ class MainShell extends ConsumerWidget {
         label: 'Operaciones',
       ),
       const BottomNavigationBarItem(
-        icon: Icon(Icons.receipt_outlined),
-        activeIcon: Icon(Icons.receipt),
-        label: 'Caja',
+        icon: Icon(Icons.account_balance_wallet_outlined),
+        activeIcon: Icon(Icons.account_balance_wallet),
+        label: 'Finanzas',
       ),
       if (puedeVerUsuarios)
         const BottomNavigationBarItem(
@@ -151,7 +158,7 @@ class MainShell extends ConsumerWidget {
               context.go(AppRoutes.operaciones);
               break;
             case 3:
-              context.go(AppRoutes.caja);
+              context.go(AppRoutes.finanzas);
               break;
             case 4:
               if (puedeVerUsuarios) context.go(AppRoutes.usuarios);
@@ -177,7 +184,7 @@ class MainShell extends ConsumerWidget {
         location.startsWith(AppRoutes.servicios)) {
       return 2;
     }
-    if (location.startsWith(AppRoutes.caja)) return 3;
+    if (location.startsWith(AppRoutes.finanzas)) return 3;
 
     if (canViewUsers &&
         (location.startsWith(AppRoutes.usuarios) ||
@@ -301,23 +308,45 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const ImpresoraConfigPage(),
           ),
           GoRoute(
-            path: AppRoutes.caja,
-            builder: (context, state) => const CajaPage(),
+            path: AppRoutes.finanzas,
+            builder: (context, state) => const FinanzasHubPage(),
           ),
           GoRoute(
-            path: AppRoutes.cajaHistorial,
-            builder: (context, state) =>
-                const CajaHistorialPage(),
-          ),
-          GoRoute(
-            path: AppRoutes.cajaResumen,
+            path: AppRoutes.finanzasCajaResumen,
             builder: (context, state) =>
                 const CajaResumenPage(),
           ),
           GoRoute(
-            path: AppRoutes.cajaCierre,
+            path: AppRoutes.finanzasCajaCierre,
             builder: (context, state) =>
                 const CajaCierrePage(),
+          ),
+          GoRoute(
+            path: AppRoutes.finanzasDeudas,
+            builder: (context, state) =>
+                const DeudasPage(),
+          ),
+          GoRoute(
+            path: AppRoutes.finanzasPagoResumen,
+            builder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>?;
+              final deuda = extra?['deuda'];
+              final monto = extra?['monto'] as String?;
+
+              if (deuda == null || monto == null) {
+                return const DeudasPage();
+              }
+
+              return PagoResumenPage(
+                deuda: deuda,
+                montoRegistrado: monto,
+              );
+            },
+          ),
+          GoRoute(
+            path: AppRoutes.finanzasGastos,
+            builder: (context, state) =>
+                const GastosPage(),
           ),
           GoRoute(
             path: AppRoutes.tiendas,
@@ -376,6 +405,10 @@ String? _resolveRedirect({
       (currentPath.startsWith(AppRoutes.usuarios) ||
           currentPath.startsWith(AppRoutes.asistencia))) {
     return AppRoutes.home;
+  }
+
+  if (!isDueno && currentPath.startsWith(AppRoutes.finanzasGastos)) {
+    return AppRoutes.finanzas;
   }
 
   if (AppRoutes.onboarding.contains(currentPath)) {

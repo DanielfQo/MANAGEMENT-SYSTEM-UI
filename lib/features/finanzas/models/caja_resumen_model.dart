@@ -1,29 +1,3 @@
-class OperacionInfo {
-  final int id;
-  final String total;
-  final String tipo;
-  final String metodoPago;
-  final String tipoOperacion;
-
-  OperacionInfo({
-    required this.id,
-    required this.total,
-    required this.tipo,
-    required this.metodoPago,
-    required this.tipoOperacion,
-  });
-
-  factory OperacionInfo.fromJson(Map<String, dynamic> json) {
-    return OperacionInfo(
-      id: json['id'] ?? 0,
-      total: json['total']?.toString() ?? '0',
-      tipo: json['tipo'] ?? '',
-      metodoPago: json['metodo_pago'] ?? '',
-      tipoOperacion: json['tipo_operacion'] ?? 'Venta',
-    );
-  }
-}
-
 class ResumenOperaciones {
   final String totalGeneral;
   final String totalContado;
@@ -62,8 +36,6 @@ class ResumenOperaciones {
 class CajaResumenModel {
   final String fecha;
   final int tiendaId;
-  final List<OperacionInfo> ventas;
-  final List<OperacionInfo> servicios;
   final ResumenOperaciones? resumenVentas;
   final ResumenOperaciones? resumenServicios;
   final String totalEfectivo;
@@ -78,8 +50,6 @@ class CajaResumenModel {
   CajaResumenModel({
     required this.fecha,
     required this.tiendaId,
-    required this.ventas,
-    required this.servicios,
     this.resumenVentas,
     this.resumenServicios,
     required this.totalEfectivo,
@@ -96,14 +66,6 @@ class CajaResumenModel {
     return CajaResumenModel(
       fecha: json['fecha'] ?? '',
       tiendaId: json['tienda_id'] ?? 0,
-      ventas: (json['ventas'] as List?)
-              ?.map((v) => OperacionInfo.fromJson(v))
-              .toList() ??
-          [],
-      servicios: (json['servicios'] as List?)
-              ?.map((s) => OperacionInfo.fromJson(s))
-              .toList() ??
-          [],
       resumenVentas: json['resumen_ventas'] != null
           ? ResumenOperaciones.fromJson(json['resumen_ventas'])
           : null,
