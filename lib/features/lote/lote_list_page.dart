@@ -11,12 +11,29 @@ class LoteListPage extends ConsumerStatefulWidget {
 }
 
 class _LoteListPageState extends ConsumerState<LoteListPage> {
+  late final ScrollController _scrollController;
+
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
     Future.microtask(
       () => ref.read(inventarioProvider.notifier).cargarLotes(),
     );
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(inventarioProvider.notifier).cargarMasLotes();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -63,6 +80,7 @@ class _LoteListPageState extends ConsumerState<LoteListPage> {
                               onRefresh: () =>
                                   ref.read(inventarioProvider.notifier).cargarLotes(),
                               child: GridView.builder(
+                                controller: _scrollController,
                                 padding:
                                     const EdgeInsets.fromLTRB(16, 16, 16, 16),
                                 gridDelegate:
@@ -72,8 +90,19 @@ class _LoteListPageState extends ConsumerState<LoteListPage> {
                                   mainAxisSpacing: 12,
                                   childAspectRatio: 0.8,
                                 ),
-                                itemCount: lotes.length,
+                                itemCount:
+                                    lotes.length + (state.hasMore ? 1 : 0),
                                 itemBuilder: (context, index) {
+                                  if (index == lotes.length) {
+                                    return const Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          color: Color(0xFF2F3A8F),
+                                        ),
+                                      ),
+                                    );
+                                  }
                                   final lote = lotes[index];
                                   return _LoteCard(
                                     lote: lote,

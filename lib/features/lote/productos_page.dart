@@ -1,6 +1,7 @@
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'lote_provider.dart';
+import 'models/producto_catalogo_model.dart';
 import 'models/producto_model.dart';
 import 'models/stock_model.dart';
 import 'constants/unidad_medida.dart';
@@ -24,66 +25,41 @@ class ProductosPage extends ConsumerStatefulWidget {
 
 class _ProductosPageState extends ConsumerState<ProductosPage> {
   final _searchController = TextEditingController();
-  String _searchQuery = '';
+  late final ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(() => setState(() {
-          _searchQuery = _searchController.text;
-        }));
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
     Future.microtask(
-      () {
-        ref.read(inventarioProvider.notifier).cargarProductos();
-        ref.read(inventarioProvider.notifier).cargarStock();
-        ref.read(inventarioProvider.notifier).cargarLotes();
-      },
+      () => ref.read(productoCatalogoProvider.notifier).cargarCatalogo(),
     );
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(productoCatalogoProvider.notifier).cargarMasProductos();
+    }
+  }
+
+  void _buscar(String query) {
+    ref.read(productoCatalogoProvider.notifier).cargarCatalogo(search: query.isNotEmpty ? query : null);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final isDueno = ref.watch(authProvider).userMe?.isDueno ?? false;
-    final state = ref.watch(inventarioProvider);
+    final state = ref.watch(productoCatalogoProvider);
     final productos = state.productos;
-    final stock = state.stock;
-
-    // Crear mapa de stock para búsqueda rápida: productoId -> StockModel
-    final stockMap = {
-      for (final s in stock) s.productoId: s,
-    };
-
-    // Calcular cantidadAveriada por producto desde lotes
-    final averiados = <int, double>{};
-    for (final lote in state.lotes) {
-      for (final lp in lote.productos) {
-        if (lp.isActive) {
-          final cantidad = double.tryParse(lp.cantidadAveriada) ?? 0;
-          if (cantidad > 0) {
-            averiados[lp.producto] = (averiados[lp.producto] ?? 0) + cantidad;
-          }
-        }
-      }
-    }
-
-    // Set de productos con factura (cruzar con lotes activos)
-    final facturableIds = <int>{
-      for (final lote in state.lotes)
-        for (final lp in lote.productos)
-          if (lp.conFactura && lp.isActive) lp.producto,
-    };
-
-    // Filtrar productos por búsqueda
-    final productosParaMostrar = productos
-        .where((p) => _searchQuery.isEmpty ||
-            p.nombre.toLowerCase().contains(_searchQuery.toLowerCase()))
-        .toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F7),
@@ -101,13 +77,17 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: TextField(
                 controller: _searchController,
+                onChanged: _buscar,
                 decoration: InputDecoration(
                   hintText: 'Buscar producto...',
                   prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchQuery.isNotEmpty
+                  suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear),
-                          onPressed: () => _searchController.clear(),
+                          onPressed: () {
+                            _searchController.clear();
+                            _buscar('');
+                          },
                         )
                       : null,
                   filled: true,
@@ -130,19 +110,11 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                   : state.errorMessage != null && productos.isEmpty
                       ? ErrorState(
                           mensaje: state.errorMessage!,
-                          onRetry: () {
-                            ref
-                                .read(inventarioProvider.notifier)
-                                .cargarProductos();
-                            ref
-                                .read(inventarioProvider.notifier)
-                                .cargarStock();
-                            ref
-                                .read(inventarioProvider.notifier)
-                                .cargarLotes();
-                          },
+                          onRetry: () => ref
+                              .read(productoCatalogoProvider.notifier)
+                              .cargarCatalogo(),
                         )
-                      : productosParaMostrar.isEmpty
+                      : productos.isEmpty
                           ? const EmptyState(
                               icon: Icons.inventory_outlined,
                               titulo: 'Sin productos',
@@ -151,18 +123,11 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                             )
                           : RefreshIndicator(
                               color: const Color(0xFF2F3A8F),
-                              onRefresh: () async {
-                                await ref
-                                    .read(inventarioProvider.notifier)
-                                    .cargarProductos();
-                                await ref
-                                    .read(inventarioProvider.notifier)
-                                    .cargarStock();
-                                await ref
-                                    .read(inventarioProvider.notifier)
-                                    .cargarLotes();
-                              },
+                              onRefresh: () => ref
+                                  .read(productoCatalogoProvider.notifier)
+                                  .cargarCatalogo(),
                               child: GridView.builder(
+                                controller: _scrollController,
                                 padding:
                                     const EdgeInsets.fromLTRB(16, 16, 16, 16),
                                 gridDelegate:
@@ -172,24 +137,27 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
                                   mainAxisSpacing: 12,
                                   childAspectRatio: 0.75,
                                 ),
-                                itemCount: productosParaMostrar.length,
+                                itemCount:
+                                    productos.length + (state.hasMore ? 1 : 0),
                                 itemBuilder: (context, index) {
-                                  final producto = productosParaMostrar[index];
-                                  final productoStock =
-                                      stockMap[producto.id];
-                                  final tieneFactura =
-                                      facturableIds.contains(producto.id);
+                                  if (index == productos.length) {
+                                    return const Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          color: Color(0xFF2F3A8F),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  final producto = productos[index];
                                   return _ProductoGridCard(
                                     producto: producto,
-                                    stock: productoStock,
-                                    cantidadAveriada: averiados[producto.id],
-                                    tieneFactura: tieneFactura,
                                     isDueno: isDueno,
                                     onTap: () {
                                       _mostrarDetalleModal(
                                         context,
                                         producto,
-                                        productoStock,
                                         isDueno,
                                       );
                                     },
@@ -206,10 +174,29 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
 
   void _mostrarDetalleModal(
     BuildContext context,
-    ProductoModel producto,
-    StockModel? stock,
+    ProductoCatalogoModel catalogoProducto,
     bool isDueno,
   ) {
+    // Convertir ProductoCatalogoModel a ProductoModel y StockModel
+    final producto = ProductoModel(
+      id: catalogoProducto.productoId,
+      nombre: catalogoProducto.nombre,
+      codigo: catalogoProducto.codigo,
+      tipoIgv: catalogoProducto.tipoIgv,
+      tipoIgvDisplay: catalogoProducto.tipoIgv,
+      imagen: catalogoProducto.imagen,
+      isActive: catalogoProducto.isActive,
+    );
+
+    final stock = StockModel(
+      productoId: catalogoProducto.productoId,
+      productoNombre: catalogoProducto.nombre,
+      unidadMedida: catalogoProducto.unidadMedida,
+      cantidadDisponible: catalogoProducto.cantidadDisponible,
+      cantidadAveriada: catalogoProducto.cantidadAveriada,
+      precioVentaMercado: catalogoProducto.precioVentaMercado,
+    );
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -224,26 +211,21 @@ class _ProductosPageState extends ConsumerState<ProductosPage> {
 }
 
 class _ProductoGridCard extends StatelessWidget {
-  final ProductoModel producto;
-  final StockModel? stock;
-  final double? cantidadAveriada;
-  final bool tieneFactura;
+  final ProductoCatalogoModel producto;
   final bool isDueno;
   final VoidCallback onTap;
 
   const _ProductoGridCard({
     required this.producto,
-    this.stock,
-    this.cantidadAveriada,
-    required this.tieneFactura,
     required this.isDueno,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final tieneDisponibilidad = stock != null &&
-        (double.tryParse(stock!.cantidadDisponible) ?? 0) > 0;
+    final cantidadDisponible = double.tryParse(producto.cantidadDisponible) ?? 0;
+    final cantidadAveriada = double.tryParse(producto.cantidadAveriada) ?? 0;
+    final tieneDisponibilidad = cantidadDisponible > 0;
 
     return GestureDetector(
       onTap: onTap,
@@ -372,37 +354,36 @@ class _ProductoGridCard extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        if (stock != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 1),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Cantidad disponible
-                                Text(
-                                  '${_formatearCantidad(stock!.cantidadDisponible)} ${UnidadMedida.getLabel(stock!.unidadMedida)}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF2F3A8F),
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Cantidad disponible
+                              Text(
+                                '${_formatearCantidad(producto.cantidadDisponible)} ${UnidadMedida.getLabel(producto.unidadMedida)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF2F3A8F),
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                // Cantidad averiada
-                                if (cantidadAveriada != null && cantidadAveriada! > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(
-                                      '${cantidadAveriada!.toInt()} averiadas',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.orange[700],
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                              ),
+                              // Cantidad averiada
+                              if (cantidadAveriada > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    '${cantidadAveriada.toInt()} averiadas',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.orange[700],
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                              ],
-                            ),
+                                ),
+                            ],
                           ),
+                        ),
                       ],
                     ),
                     const Spacer(),
@@ -412,13 +393,13 @@ class _ProductoGridCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: tieneFactura
+                            color: producto.tieneConFactura
                                 ? const Color(0xFF1565C0)
                                 : Colors.grey[600],
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            tieneFactura ? 'Con factura' : 'Sin factura',
+                            producto.tieneConFactura ? 'Con factura' : 'Sin factura',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 9,
