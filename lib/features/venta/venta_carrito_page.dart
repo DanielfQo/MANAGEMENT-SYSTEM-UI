@@ -19,6 +19,14 @@ class _VentaCarritoPageState extends ConsumerState<VentaCarritoPage> {
   final Set<int> _editingPrecioIndices = {}; // Track which prices are being edited
 
   @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(inventarioProvider.notifier).cargarLotes(),
+    );
+  }
+
+  @override
   void dispose() {
     for (var controller in _cantidadControllers) {
       controller.dispose();

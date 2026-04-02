@@ -134,13 +134,13 @@ class PropuestaSunatItem {
 
   factory PropuestaSunatItem.fromJson(Map<String, dynamic> json) {
     return PropuestaSunatItem(
-      loteProductoId: json['lote_producto_id'],
+      loteProductoId: (json['lote_producto_id'] as int?) ?? 0,
       loteProductoNombre: json['lote_producto_nombre'] ?? '',
       cantidad: json['cantidad']?.toString() ?? '0',
       precio: json['precio']?.toString() ?? '0',
       subtotal: json['subtotal']?.toString() ?? '0',
       esRelleno: json['es_relleno'] ?? false,
-      loteProductoOriginalId: json['lote_producto_original_id'],
+      loteProductoOriginalId: json['lote_producto_original_id'] as int?,
     );
   }
 }

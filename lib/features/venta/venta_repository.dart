@@ -142,7 +142,20 @@ class VentaRepository {
           'propuesta': items.map((item) => item.toJson()).toList(),
         },
       );
-      return VentaReadModel.fromJson(response.data);
+
+      // Manejar si la respuesta es un objeto directo o viene en una lista
+      final data = response.data;
+      Map<String, dynamic> ventaData;
+
+      if (data is Map) {
+        ventaData = data as Map<String, dynamic>;
+      } else if (data is List && data.isNotEmpty) {
+        ventaData = data.first as Map<String, dynamic>;
+      } else {
+        throw Exception('Respuesta inesperada del servidor');
+      }
+
+      return VentaReadModel.fromJson(ventaData);
     } on DioException catch (e) {
       final errorMsg = _extractErrorMessage(
         e,
