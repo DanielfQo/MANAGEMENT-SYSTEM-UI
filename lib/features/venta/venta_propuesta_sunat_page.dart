@@ -1,5 +1,7 @@
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
+import 'package:management_system_ui/features/lote/lote_repository.dart';
+import 'package:management_system_ui/features/lote/models/producto_catalogo_model.dart';
 import 'package:management_system_ui/features/venta/models/venta_create_model.dart';
 import 'package:management_system_ui/features/venta/models/venta_read_model.dart';
 import 'package:management_system_ui/features/venta/venta_flow_header.dart';
@@ -186,15 +188,24 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
     List<VentaLineaModel> detalle,
     WidgetRef ref,
   ) {
+    final tiendaId = ref.read(authProvider).selectedTiendaId;
+
     return FutureBuilder(
-      future: _cargarProductosCompletos(ref),
+      future: tiendaId != null
+          ? ref.read(loteRepositoryProvider).getCatalogo(tiendaId)
+          : Future.value((productos: <ProductoCatalogoModel>[], nextCursor: null as String?)),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // Mapeo completo de productos (id → datos completos)
-        final productosMap = snapshot.data ?? {};
+        // Mapa por nombre (minúsculas) para buscar por loteProductoNombre
+        final catalogoPorNombre = <String, ProductoCatalogoModel>{};
+        if (snapshot.hasData && snapshot.data != null) {
+          for (var prod in snapshot.data!.productos) {
+            catalogoPorNombre[prod.nombre.toLowerCase()] = prod;
+          }
+        }
 
         return Column(
           children: propuestaSunat.asMap().entries.map((entry) {
@@ -202,7 +213,7 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
               entry.value,
               entry.key,
               detalle,
-              productosMap,
+              catalogoPorNombre,
             );
           }).toList(),
         );
@@ -214,17 +225,23 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
     dynamic propuestaItem,
     int index,
     List<VentaLineaModel> detalle,
-    Map<int, dynamic> productosMap,
+    Map<String, ProductoCatalogoModel> catalogoPorNombre,
   ) {
     final cantidadCtrl = cantidadControllers[index] ?? TextEditingController();
     final precioCtrl = precioControllers[index] ?? TextEditingController();
 
-    // Obtener el producto original del detalle
     final productoOriginal = detalle.isNotEmpty ? detalle[index % detalle.length] : null;
 
-    // Obtener datos del producto de reemplazo
-    final productoData = productosMap[propuestaItem.loteProductoId] ?? {};
-    final imagenReemplazo = productoData['imagen'] ?? '';
+    // Buscar imagen por nombre del producto (loteProductoNombre)
+    final nombreActual = (propuestaItem.loteProductoNombre as String).toLowerCase();
+    final imagenProductoActual = catalogoPorNombre[nombreActual]?.imagen ?? '';
+
+    // Imagen del reemplazo: si el usuario eligió uno, usar su imagen; si no, usar la del catálogo
+    final productoReemplazo = productosReemplazo[index];
+    final nombreReemplazo = (productoReemplazo?['nombre'] as String? ?? '').toLowerCase();
+    final imagenReemplazo = productoReemplazo?['imagen'] as String? ??
+        (nombreReemplazo.isNotEmpty ? catalogoPorNombre[nombreReemplazo]?.imagen : null) ??
+        imagenProductoActual;
 
     final isRelleno = propuestaItem.esRelleno ?? false;
 
@@ -235,15 +252,16 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
             productoOriginal,
             cantidadCtrl,
             precioCtrl,
+            imagenProductoActual,
             imagenReemplazo,
             ref,
-            productosMap,
+            catalogoPorNombre,
           )
         : _buildProductoNormalItem(
             propuestaItem,
             cantidadCtrl,
             precioCtrl,
-            imagenReemplazo,
+            imagenProductoActual,
           );
   }
 
@@ -400,17 +418,17 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
     VentaLineaModel? productoOriginal,
     TextEditingController cantidadCtrl,
     TextEditingController precioCtrl,
-    String imagenUrl,
+    String imagenProductoActual,
+    String imagenReemplazo,
     WidgetRef ref,
-    Map<int, dynamic> productosMap,
+    Map<String, ProductoCatalogoModel> catalogoPorNombre,
   ) {
     final productoFueReemplazado = productosReemplazo.containsKey(index);
     final productoReemplazoData = productosReemplazo[index];
 
-    // Obtener imagen del producto original si está disponible
-    final imagenProductoOriginal = propuestaItem.loteProductoOriginalId != null
-        ? (productosMap[propuestaItem.loteProductoOriginalId] ?? {})['imagen'] ?? ''
-        : '';
+    // Obtener imagen del producto original buscando por su nombre en el catálogo
+    final nombreOriginal = (productoOriginal?.productoNombre ?? '').toLowerCase();
+    final imagenProductoOriginal = catalogoPorNombre[nombreOriginal]?.imagen ?? '';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
@@ -577,7 +595,7 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
                       OutlinedButton.icon(
                         icon: const Icon(Icons.swap_horiz, size: 16),
                         label: const Text('Cambiar'),
-                        onPressed: () => _mostrarSelectorProductos(index, ref),
+                        onPressed: () => _cargarYMostrarSelectorProductos(index),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -598,9 +616,7 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
                     child: Row(
                       children: [
                         _buildImagePlaceholder(
-                          imageUrl: productoFueReemplazado
-                              ? (productoReemplazoData['imagen'] ?? '')
-                              : imagenUrl,
+                          imageUrl: imagenReemplazo,
                           width: 60,
                           height: 60,
                           bgColor: Colors.green[100]!,
@@ -733,151 +749,30 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
     );
   }
 
-  Future<Map<int, dynamic>> _cargarProductosCompletos(WidgetRef ref) async {
-    try {
-      final dio = ref.read(dioProvider);
-      final authState = ref.read(authProvider);
-      final tiendaId = authState.selectedTiendaId;
-
-      if (tiendaId == null) {
-        return {};
-      }
-
-      // Obtener productos (igual que catálogo)
-      final productosResponse = await dio.get('inventory/productos/');
-
-      // Obtener stock de la tienda (igual que catálogo)
-      final stockResponse = await dio.get(
-        'inventory/stock/',
-        queryParameters: {'tienda': tiendaId},
+  Future<void> _cargarYMostrarSelectorProductos(int indexActual) async {
+    final tiendaId = ref.read(authProvider).selectedTiendaId;
+    if (tiendaId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay tienda seleccionada')),
       );
-
-      Map<int, dynamic> productosMap = {};
-
-      // Procesar productos base
-      if (productosResponse.data is List) {
-        for (var prod in productosResponse.data) {
-          final id = prod['id'] as int?;
-          if (id != null) {
-            productosMap[id] = {
-              'id': id,
-              'nombre': prod['nombre'] ?? '',
-              'codigo': prod['codigo'] ?? '',
-              'imagen': prod['imagen'] ?? '',
-              'precio': 0.0,
-              'stock': 0,
-            };
-          }
-        }
-      }
-
-      // Procesar stock y hacer match con productos
-      // El stock tiene: producto_id, cantidad_disponible, precio_venta_mercado
-      List stockList = [];
-      if (stockResponse.data is Map && stockResponse.data.containsKey('results')) {
-        stockList = stockResponse.data['results'];
-      } else if (stockResponse.data is List) {
-        stockList = stockResponse.data;
-      }
-
-      // Hacer match: producto_id -> StockData
-      for (var stockItem in stockList) {
-        final productoId = stockItem['producto_id'] as int?;
-        final cantidadDisponible =
-            double.tryParse(stockItem['cantidad_disponible']?.toString() ?? '0') ?? 0.0;
-        final precioVentaMercado =
-            double.tryParse(stockItem['precio_venta_mercado']?.toString() ?? '0') ?? 0.0;
-
-        if (productoId != null && productosMap.containsKey(productoId)) {
-          productosMap[productoId]['stock'] = cantidadDisponible.toInt();
-          productosMap[productoId]['precio'] = precioVentaMercado;
-        }
-      }
-
-      return productosMap;
-    } catch (e) {
-      return {};
+      return;
     }
-  }
-
-  Future<void> _mostrarSelectorProductos(int indexActual, WidgetRef ref) async {
-    final dio = ref.read(dioProvider);
-    final authState = ref.read(authProvider);
-    final tiendaId = authState.selectedTiendaId;
 
     try {
-      if (tiendaId == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No hay tienda seleccionada')),
-          );
-        }
-        return;
-      }
-
-      // Cargar productos
-      final productosResponse = await dio.get('inventory/productos/');
-
-      // Cargar stock de la tienda
-      final stockResponse = await dio.get(
-        'inventory/stock/',
-        queryParameters: {'tienda': tiendaId},
-      );
-
+      final result = await ref.read(loteRepositoryProvider).getCatalogo(tiendaId);
       if (!mounted) return;
 
-      final productos = productosResponse.data is List ? productosResponse.data : [];
-
-      // Procesar stock y crear mapa: producto_id -> datos stock
-      List stockList = [];
-      if (stockResponse.data is Map && stockResponse.data.containsKey('results')) {
-        stockList = stockResponse.data['results'];
-      } else if (stockResponse.data is List) {
-        stockList = stockResponse.data;
-      }
-
-      // Map de stock por producto_id
-      Map<int, Map<String, dynamic>> stockPorProducto = {};
-      for (var stockItem in stockList) {
-        final productoId = stockItem['producto_id'] as int?;
-        final cantidadDisponible =
-            double.tryParse(stockItem['cantidad_disponible']?.toString() ?? '0') ?? 0.0;
-        final precioVentaMercado =
-            double.tryParse(stockItem['precio_venta_mercado']?.toString() ?? '0') ?? 0.0;
-
-        if (productoId != null) {
-          stockPorProducto[productoId] = {
-            'stock': cantidadDisponible.toInt(),
-            'precio': precioVentaMercado,
-          };
-        }
-      }
-
-      // Agregar datos de stock a cada producto
-      for (var prod in productos) {
-        final productoId = prod['id'] as int?;
-        if (productoId != null && stockPorProducto.containsKey(productoId)) {
-          final stockData = stockPorProducto[productoId];
-          prod['stock'] = stockData?['stock'] ?? 0;
-          prod['precio'] = stockData?['precio'] ?? 0.0;
-        } else {
-          prod['stock'] = 0;
-          prod['precio'] = 0.0;
-        }
-      }
-
-      // Estado para el filtrado
       String filtro = '';
 
       await showDialog(
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setStateDialog) {
-            // Filtrar productos según búsqueda
-            final productosFiltrados = productos
+            final productosFiltrados = result.productos
                 .where((prod) {
-                  final nombre = (prod['nombre'] ?? '').toString().toLowerCase();
-                  final codigo = (prod['codigo'] ?? '').toString().toLowerCase();
+                  final nombre = prod.nombre.toLowerCase();
+                  final codigo = prod.codigo.toLowerCase();
                   return nombre.contains(filtro.toLowerCase()) ||
                       codigo.contains(filtro.toLowerCase());
                 })
@@ -885,9 +780,7 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
 
             return Dialog(
               insetPadding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               backgroundColor: Colors.transparent,
               child: Container(
                 decoration: BoxDecoration(
@@ -938,11 +831,7 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
                           ),
                         ),
                         child: TextField(
-                          onChanged: (value) {
-                            setStateDialog(() {
-                              filtro = value;
-                            });
-                          },
+                          onChanged: (value) => setStateDialog(() => filtro = value),
                           decoration: InputDecoration(
                             hintText: 'Buscar por nombre o código...',
                             hintStyle: TextStyle(color: Colors.grey[500]),
@@ -951,24 +840,16 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
                                 ? IconButton(
                                     icon: const Icon(Icons.clear),
                                     color: Colors.grey[600],
-                                    onPressed: () {
-                                      setStateDialog(() {
-                                        filtro = '';
-                                      });
-                                    },
+                                    onPressed: () => setStateDialog(() => filtro = ''),
                                   )
                                 : null,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE0E0E0),
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE0E0E0),
-                              ),
+                              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -986,7 +867,6 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
                           ),
                         ),
                       ),
-
                       // Lista de productos
                       Expanded(
                         child: productosFiltrados.isEmpty
@@ -994,11 +874,7 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(
-                                      Icons.search_off,
-                                      size: 56,
-                                      color: Colors.grey[300],
-                                    ),
+                                    Icon(Icons.search_off, size: 56, color: Colors.grey[300]),
                                     const SizedBox(height: 16),
                                     Text(
                                       'No se encontraron productos',
@@ -1011,44 +887,35 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
                                     const SizedBox(height: 8),
                                     Text(
                                       'Intenta con otro término de búsqueda',
-                                      style: TextStyle(
-                                        color: Colors.grey[500],
-                                        fontSize: 13,
-                                      ),
+                                      style: TextStyle(color: Colors.grey[500], fontSize: 13),
                                     ),
                                   ],
                                 ),
                               )
                             : ListView.builder(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 itemCount: productosFiltrados.length,
                                 itemBuilder: (context, idx) {
                                   final prod = productosFiltrados[idx];
-                                  final precio = (prod['precio'] as num?)?.toDouble() ?? 0.0;
-                                  final stock = prod['stock'] ?? 0;
+                                  final stock = double.tryParse(prod.cantidadDisponible) ?? 0;
+                                  final precio = double.tryParse(prod.precioVentaMercado) ?? 0.0;
 
                                   return Container(
                                     margin: const EdgeInsets.symmetric(vertical: 6),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: Colors.grey[100]!,
-                                      ),
+                                      border: Border.all(color: Colors.grey[100]!),
                                     ),
                                     child: Material(
                                       color: Colors.transparent,
                                       child: InkWell(
                                         onTap: () {
-                                          // Actualizar el producto en la propuesta
                                           setState(() {
                                             productosReemplazo[indexActual] = {
-                                              'id': prod['id'],
-                                              'nombre': prod['nombre'],
-                                              'imagen': prod['imagen'],
+                                              'id': prod.productoId,
+                                              'nombre': prod.nombre,
+                                              'imagen': prod.imagen,
                                             };
                                           });
                                           Navigator.pop(context);
@@ -1063,137 +930,127 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
                                                 width: 70,
                                                 height: 70,
                                                 decoration: BoxDecoration(
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
+                                                  borderRadius: BorderRadius.circular(10),
                                                   color: Colors.grey[100],
                                                 ),
-                                                child: (prod['imagen'] ?? '')
-                                                        .isNotEmpty
+                                                child: (prod.imagen ?? '').isNotEmpty
                                                     ? ClipRRect(
-                                                        borderRadius:
-                                                            BorderRadius.circular(10),
+                                                        borderRadius: BorderRadius.circular(10),
                                                         child: Image.network(
-                                                          prod['imagen'],
+                                                          prod.imagen!,
                                                           fit: BoxFit.cover,
-                                                          errorBuilder:
-                                                              (context, error,
-                                                                  stackTrace) =>
-                                                                  Icon(
+                                                          errorBuilder: (ctx, e, st) => Icon(
                                                             Icons.image,
-                                                            color: Colors
-                                                                .grey[400],
+                                                            color: Colors.grey[400],
                                                             size: 32,
                                                           ),
                                                         ),
                                                       )
-                                                    : Icon(
-                                                        Icons.image,
-                                                        color: Colors.grey[400],
-                                                        size: 32,
-                                                      ),
+                                                    : Icon(Icons.image, color: Colors.grey[400], size: 32),
                                               ),
                                               const SizedBox(width: 14),
-
                                               // Información
                                               Expanded(
                                                 child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
                                                     Text(
-                                                      prod['nombre'] ?? '',
+                                                      prod.nombre,
                                                       style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w600,
+                                                        fontWeight: FontWeight.w600,
                                                         fontSize: 14,
-                                                        color: Color(
-                                                            0xFF1F1F1F),
+                                                        color: Color(0xFF1F1F1F),
                                                       ),
                                                       maxLines: 2,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
+                                                      overflow: TextOverflow.ellipsis,
                                                     ),
-                                                    const SizedBox(height: 6),
+                                                    const SizedBox(height: 4),
                                                     Text(
-                                                      'Código: ${prod['codigo'] ?? ''}',
+                                                      'Código: ${prod.codigo}',
                                                       style: TextStyle(
                                                         fontSize: 12,
-                                                        color:
-                                                            Colors.grey[600],
-                                                        fontWeight:
-                                                            FontWeight.w500,
+                                                        color: Colors.grey[600],
+                                                        fontWeight: FontWeight.w500,
                                                       ),
                                                     ),
-                                                    const SizedBox(height: 8),
+                                                    const SizedBox(height: 6),
+                                                    // Badges de factura
+                                                    Wrap(
+                                                      spacing: 4,
+                                                      runSpacing: 4,
+                                                      children: [
+                                                        if (prod.tieneConFactura)
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                            decoration: BoxDecoration(
+                                                              color: const Color(0xFF1565C0),
+                                                              borderRadius: BorderRadius.circular(4),
+                                                            ),
+                                                            child: const Text(
+                                                              'Con factura',
+                                                              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                                            ),
+                                                          ),
+                                                        if (prod.tieneSinFactura)
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.grey[600],
+                                                              borderRadius: BorderRadius.circular(4),
+                                                            ),
+                                                            child: const Text(
+                                                              'Sin factura',
+                                                              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 6),
                                                     Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceBetween,
+                                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                       children: [
                                                         Container(
-                                                          padding: const EdgeInsets
-                                                              .symmetric(
+                                                          padding: const EdgeInsets.symmetric(
                                                             horizontal: 10,
                                                             vertical: 4,
                                                           ),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: const Color(
-                                                                0xFF2F3A8F),
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(6),
+                                                          decoration: BoxDecoration(
+                                                            color: const Color(0xFF2F3A8F),
+                                                            borderRadius: BorderRadius.circular(6),
                                                           ),
                                                           child: Text(
                                                             'S/. ${precio.toStringAsFixed(2)}',
                                                             style: const TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
+                                                              fontWeight: FontWeight.w600,
                                                               fontSize: 13,
-                                                              color: Colors
-                                                                  .white,
+                                                              color: Colors.white,
                                                             ),
                                                           ),
                                                         ),
                                                         Container(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
+                                                          padding: const EdgeInsets.symmetric(
                                                             horizontal: 10,
                                                             vertical: 4,
                                                           ),
-                                                          decoration:
-                                                              BoxDecoration(
+                                                          decoration: BoxDecoration(
                                                             color: stock > 0
-                                                                ? const Color(
-                                                                    0xFFE8F5E9)
-                                                                : const Color(
-                                                                    0xFFFFEBEE),
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(6),
+                                                                ? const Color(0xFFE8F5E9)
+                                                                : const Color(0xFFFFEBEE),
+                                                            borderRadius: BorderRadius.circular(6),
                                                             border: Border.all(
                                                               color: stock > 0
-                                                                  ? const Color(
-                                                                      0xFF4CAF50)
-                                                                  : const Color(
-                                                                      0xFFE53935),
-                                                              width: 1,
+                                                                  ? const Color(0xFF4CAF50)
+                                                                  : const Color(0xFFE53935),
                                                             ),
                                                           ),
                                                           child: Text(
-                                                            'Stock: $stock',
+                                                            'Stock: ${stock.toInt()}',
                                                             style: TextStyle(
                                                               fontSize: 11,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600,
+                                                              fontWeight: FontWeight.w600,
                                                               color: stock > 0
-                                                                  ? const Color(
-                                                                      0xFF2E7D32)
-                                                                  : const Color(
-                                                                      0xFFC62828),
+                                                                  ? const Color(0xFF2E7D32)
+                                                                  : const Color(0xFFC62828),
                                                             ),
                                                           ),
                                                         ),
@@ -1220,11 +1077,10 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
         ),
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
     }
   }
 
@@ -1297,7 +1153,7 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
     try {
       await ref
           .read(ventaProvider.notifier)
-          .confirmarSunat(venta.numeroComprobante, items);
+          .confirmarSunat(venta.id.toString(), items);
 
       if (!context.mounted) return;
 

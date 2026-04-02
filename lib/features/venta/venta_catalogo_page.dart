@@ -2,8 +2,7 @@ import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'package:management_system_ui/features/lote/constants/unidad_medida.dart';
 import 'package:management_system_ui/features/lote/lote_provider.dart';
-import 'package:management_system_ui/features/lote/models/producto_model.dart';
-import 'package:management_system_ui/features/lote/models/stock_model.dart';
+import 'package:management_system_ui/features/lote/models/producto_catalogo_model.dart';
 import 'package:management_system_ui/features/tienda/tienda_switcher_sheet.dart';
 import 'package:management_system_ui/features/venta/venta_flow_header.dart';
 import 'package:management_system_ui/features/venta/venta_provider.dart';
@@ -18,41 +17,41 @@ class VentaCatalogoPage extends ConsumerStatefulWidget {
 
 class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
   final _searchController = TextEditingController();
-  String _searchQuery = '';
+  late ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(() => setState(() {
-          _searchQuery = _searchController.text;
-        }));
-    _cargarDatos();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+    Future.microtask(() {
+      final tiendaId = ref.read(authProvider).selectedTiendaId;
+      if (tiendaId != null) {
+        ref.read(productoCatalogoProvider.notifier).cargarCatalogo();
+      }
+    });
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(productoCatalogoProvider.notifier).cargarMasProductos();
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
-  }
-
-  void _cargarDatos() {
-    Future.microtask(() {
-      final tiendaId = ref.read(authProvider).selectedTiendaId;
-      if (tiendaId != null) {
-        ref.read(inventarioProvider.notifier).cargarProductos();
-        ref.read(inventarioProvider.notifier).cargarStock();
-        ref.read(inventarioProvider.notifier).cargarLotes();
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     final carrito = ref.watch(carritoProvider);
-    final inventario = ref.watch(inventarioProvider);
+    final state = ref.watch(productoCatalogoProvider);
     final authState = ref.watch(authProvider);
-    final productos = inventario.productos;
-    final stock = inventario.stock;
+    final productos = state.productos;
     final userMe = authState.userMe;
     final esDueno = userMe?.isDueno ?? false;
 
@@ -61,41 +60,10 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
       authProvider.select((a) => a.selectedTiendaId),
       (previous, next) {
         if (next != null && next != previous) {
-          _cargarDatos();
+          ref.read(productoCatalogoProvider.notifier).cargarCatalogo();
         }
       },
     );
-
-    // Crear mapa de stock: productoId -> StockModel
-    final stockMap = {
-      for (final s in stock) s.productoId: s,
-    };
-
-    // Calcular cantidadAveriada por producto desde lotes
-    final averiados = <int, double>{};
-    for (final lote in inventario.lotes) {
-      for (final lp in lote.productos) {
-        if (lp.isActive) {
-          final cantidad = double.tryParse(lp.cantidadAveriada) ?? 0;
-          if (cantidad > 0) {
-            averiados[lp.producto] = (averiados[lp.producto] ?? 0) + cantidad;
-          }
-        }
-      }
-    }
-
-    // Set de productos con factura (cruzar con lotes activos)
-    final facturableIds = <int>{
-      for (final lote in inventario.lotes)
-        for (final lp in lote.productos)
-          if (lp.conFactura && lp.isActive) lp.producto,
-    };
-
-    // Filtrar productos por búsqueda
-    final productosParaMostrar = productos
-        .where((p) => _searchQuery.isEmpty ||
-            p.nombre.toLowerCase().contains(_searchQuery.toLowerCase()))
-        .toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F7),
@@ -116,13 +84,21 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: TextField(
               controller: _searchController,
+              onChanged: (query) {
+                ref.read(productoCatalogoProvider.notifier).cargarCatalogo(
+                  search: query.isNotEmpty ? query : null,
+                );
+              },
               decoration: InputDecoration(
                 hintText: 'Buscar producto...',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchQuery.isNotEmpty
+                suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
-                        onPressed: () => _searchController.clear(),
+                        onPressed: () {
+                          _searchController.clear();
+                          ref.read(productoCatalogoProvider.notifier).cargarCatalogo();
+                        },
                       )
                     : null,
                 filled: true,
@@ -136,24 +112,20 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
             ),
           ),
           Expanded(
-            child: inventario.isLoading && productos.isEmpty
+            child: state.isLoading && productos.isEmpty
                 ? const Center(
                     child: CircularProgressIndicator(
                       color: Color(0xFF2F3A8F),
                     ),
                   )
-                : inventario.errorMessage != null && productos.isEmpty
+                : state.errorMessage != null && productos.isEmpty
                     ? ErrorState(
-                        mensaje: inventario.errorMessage!,
+                        mensaje: state.errorMessage!,
                         onRetry: () {
-                          ref
-                              .read(inventarioProvider.notifier)
-                              .cargarProductos();
-                          ref.read(inventarioProvider.notifier).cargarStock();
-                          ref.read(inventarioProvider.notifier).cargarLotes();
+                          ref.read(productoCatalogoProvider.notifier).cargarCatalogo();
                         },
                       )
-                    : productosParaMostrar.isEmpty
+                    : productos.isEmpty
                         ? const EmptyState(
                             icon: Icons.inventory_outlined,
                             titulo: 'Sin productos disponibles',
@@ -162,17 +134,10 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
                         : RefreshIndicator(
                             color: const Color(0xFF2F3A8F),
                             onRefresh: () async {
-                              await ref
-                                  .read(inventarioProvider.notifier)
-                                  .cargarProductos();
-                              await ref
-                                  .read(inventarioProvider.notifier)
-                                  .cargarStock();
-                              await ref
-                                  .read(inventarioProvider.notifier)
-                                  .cargarLotes();
+                              await ref.read(productoCatalogoProvider.notifier).cargarCatalogo();
                             },
                             child: GridView.builder(
+                              controller: _scrollController,
                               padding: const EdgeInsets.all(16),
                               gridDelegate:
                                   const SliverGridDelegateWithFixedCrossAxisCount(
@@ -181,40 +146,38 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
                                 mainAxisSpacing: 12,
                                 childAspectRatio: 0.70,
                               ),
-                              itemCount: productosParaMostrar.length,
+                              itemCount: productos.length + (state.hasMore ? 1 : 0),
                               itemBuilder: (context, index) {
-                                final producto =
-                                    productosParaMostrar[index];
-                                final productoStock =
-                                    stockMap[producto.id];
-                                final tieneFactura =
-                                    facturableIds.contains(producto.id);
+                                // Mostrar loading spinner al final si hay más productos
+                                if (index == productos.length) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        color: Color(0xFF2F3A8F),
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                final producto = productos[index];
                                 final enCarrito = carrito.items
-                                    .any((i) => i.productoId == producto.id);
+                                    .any((i) => i.productoId == producto.productoId);
                                 return _ProductoVentaCard(
                                   producto: producto,
-                                  stock: productoStock,
-                                  tieneFactura: tieneFactura,
                                   enCarrito: enCarrito,
-                                  cantidadAveriada: averiados[producto.id],
-                                  onTapNormal: productoStock == null
-                                      ? null
-                                      : () => _handleProductoTap(
-                                            context,
-                                            producto,
-                                            productoStock,
-                                            ref,
-                                            esAveriado: false,
-                                          ),
-                                  onTapAveriado: productoStock == null
-                                      ? null
-                                      : () => _handleProductoTap(
-                                            context,
-                                            producto,
-                                            productoStock,
-                                            ref,
-                                            esAveriado: true,
-                                          ),
+                                  onTapNormal: () => _handleProductoTap(
+                                    context,
+                                    producto,
+                                    ref,
+                                    esAveriado: false,
+                                  ),
+                                  onTapAveriado: () => _handleProductoTap(
+                                    context,
+                                    producto,
+                                    ref,
+                                    esAveriado: true,
+                                  ),
                                 );
                               },
                             ),
@@ -316,25 +279,23 @@ class _VentaCatalogoPageState extends ConsumerState<VentaCatalogoPage> {
 
 void _handleProductoTap(
   BuildContext context,
-  ProductoModel producto,
-  StockModel productoStock,
+  ProductoCatalogoModel producto,
   WidgetRef ref, {
   required bool esAveriado,
 }) {
   final carrito = ref.watch(carritoProvider);
-  final idx = carrito.items.indexWhere((i) => i.productoId == producto.id);
+  final idx = carrito.items.indexWhere((i) => i.productoId == producto.productoId);
 
   if (idx >= 0) {
     // Producto ya está en carrito → eliminar
     ref.read(carritoProvider.notifier).eliminarItem(idx);
   } else {
     // Agregar producto al carrito
-    final precioVenta =
-        double.tryParse(productoStock.precioVentaMercado) ?? 0;
+    final precioVenta = double.tryParse(producto.precioVentaMercado) ?? 0;
     final item = CarritoItem(
-      productoId: producto.id,
+      productoId: producto.productoId,
       productoNombre: producto.nombre,
-      unidadMedida: productoStock.unidadMedida,
+      unidadMedida: producto.unidadMedida,
       cantidad: 1,
       precioVenta: precioVenta,
       productoImagen: producto.imagen,
@@ -359,32 +320,25 @@ void _mostrarSelectorTienda(
 
 
 class _ProductoVentaCard extends StatelessWidget {
-  final ProductoModel producto;
-  final StockModel? stock;
-  final bool tieneFactura;
+  final ProductoCatalogoModel producto;
   final bool enCarrito;
-  final double? cantidadAveriada;
   final VoidCallback? onTapNormal;
   final VoidCallback? onTapAveriado;
 
   const _ProductoVentaCard({
     required this.producto,
-    this.stock,
-    required this.tieneFactura,
     required this.enCarrito,
-    this.cantidadAveriada,
     required this.onTapNormal,
     required this.onTapAveriado,
   });
 
   bool _tieneStock() {
-    if (stock == null) return false;
-    final cantidad = double.tryParse(stock!.cantidadDisponible) ?? 0;
+    final cantidad = double.tryParse(producto.cantidadDisponible) ?? 0;
     return cantidad > 0;
   }
 
   bool _tieneAveriados() {
-    final cantidad = cantidadAveriada ?? 0;
+    final cantidad = double.tryParse(producto.cantidadAveriada) ?? 0;
     return cantidad > 0;
   }
 
@@ -431,7 +385,7 @@ class _ProductoVentaCard extends StatelessWidget {
               icono: Icons.check_circle,
               colorBase: Colors.green,
               titulo: 'Producto normal',
-              cantidad: stock!.cantidadDisponible,
+              cantidad: producto.cantidadDisponible,
               onTap: () {
                 Navigator.pop(context);
                 onTapNormal?.call();
@@ -446,7 +400,7 @@ class _ProductoVentaCard extends StatelessWidget {
               icono: Icons.warning_amber,
               colorBase: Colors.orange,
               titulo: 'Producto averiado',
-              cantidad: '${cantidadAveriada?.toInt() ?? 0}',
+              cantidad: producto.cantidadAveriada,
               onTap: () {
                 Navigator.pop(context);
                 onTapAveriado?.call();
@@ -649,7 +603,7 @@ class _ProductoVentaCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          '${cantidadAveriada!.toInt()} averiados',
+                          '${double.tryParse(producto.cantidadAveriada)?.toInt() ?? 0} averiados',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 9,
@@ -685,9 +639,7 @@ class _ProductoVentaCard extends StatelessWidget {
                           CrossAxisAlignment.start,
                       children: [
                         Text(
-                          stock != null
-                              ? 'S/. ${stock!.precioVentaMercado}'
-                              : 'N/A',
+                          'S/. ${producto.precioVentaMercado}',
                           style: const TextStyle(
                             color: Color(0xFF2F3A8F),
                             fontWeight: FontWeight.bold,
@@ -695,50 +647,41 @@ class _ProductoVentaCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        if (stock != null)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${formatCantidadStr(stock!.cantidadDisponible)} ${UnidadMedida.getLabel(stock!.unidadMedida)}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey[600],
-                                ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${formatCantidadStr(producto.cantidadDisponible)} ${UnidadMedida.getLabel(producto.unidadMedida)}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
                               ),
-                              if (cantidadAveriada != null && cantidadAveriada! > 0)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 1),
-                                  child: Text(
-                                    '${cantidadAveriada!.toInt()} averiadas',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.orange[700],
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                            ),
+                            if (_tieneAveriados())
+                              Padding(
+                                padding: const EdgeInsets.only(top: 1),
+                                child: Text(
+                                  '${double.tryParse(producto.cantidadAveriada)?.toInt() ?? 0} averiadas',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.orange[700],
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                            ],
-                          )
-                        else
-                          Text(
-                            'Sin stock',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[600],
-                            ),
-                          ),
+                              ),
+                          ],
+                        ),
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: tieneFactura
+                            color: producto.tieneConFactura
                                 ? const Color(0xFF1565C0)
                                 : Colors.grey[600],
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            tieneFactura ? 'Con factura' : 'Sin factura',
+                            producto.tieneConFactura ? 'Con factura' : 'Sin factura',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 9,
