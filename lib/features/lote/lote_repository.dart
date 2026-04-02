@@ -3,6 +3,7 @@ import 'package:management_system_ui/core/common_libs.dart';
 import 'models/lote_model.dart';
 import 'models/lote_response_model.dart';
 import 'models/producto_model.dart';
+import 'models/producto_catalogo_model.dart';
 import 'models/stock_model.dart';
 
 final loteRepositoryProvider = Provider((ref) {
@@ -94,29 +95,44 @@ class LoteRepository {
     }
   }
 
-  /// Obtener lista de lotes de una tienda
-  Future<List<LoteResponse>> getLotes(int tiendaId) async {
+  /// Obtener lista de lotes de una tienda con cursor pagination
+  Future<({List<LoteResponse> lotes, String? nextCursor})> getLotes(
+    int tiendaId, {
+    String? cursor,
+  }) async {
     try {
+      final params = <String, dynamic>{
+        'tienda': tiendaId,
+      };
+      if (cursor != null) {
+        params['cursor'] = cursor;
+      }
       final response = await _dio.get(
         'inventory/lotes/',
-        queryParameters: {
-          'tienda': tiendaId,
-        },
+        queryParameters: params,
       );
 
       final data = response.data;
+      String? nextCursor;
       final List results;
       if (data is Map && data.containsKey('results')) {
         results = data['results'] as List;
+        final nextUrl = data['next'] as String?;
+        if (nextUrl != null) {
+          final uri = Uri.parse(nextUrl);
+          nextCursor = uri.queryParameters['cursor'];
+        }
       } else if (data is List) {
         results = data;
       } else {
         results = [];
       }
 
-      return results
+      final lotes = results
           .map((e) => LoteResponse.fromJson(e as Map<String, dynamic>))
           .toList();
+
+      return (lotes: lotes, nextCursor: nextCursor);
     } on DioException catch (e) {
       final msg = _extractErrorMessage(e);
       throw Exception(msg);
@@ -167,6 +183,58 @@ class LoteRepository {
       return results
           .map((e) => StockModel.fromJson(e as Map<String, dynamic>))
           .toList();
+    } on DioException catch (e) {
+      final msg = _extractErrorMessage(e);
+      throw Exception(msg);
+    }
+  }
+
+  /// Obtener catálogo de productos de una tienda con paginación
+  Future<({List<ProductoCatalogoModel> productos, String? nextCursor})> getCatalogo(
+    int tiendaId, {
+    String? cursor,
+    String? search,
+    int pageSize = 20,
+  }) async {
+    try {
+      final params = <String, dynamic>{
+        'tienda': tiendaId,
+        'page_size': pageSize,
+      };
+      if (cursor != null) {
+        params['cursor'] = cursor;
+      }
+      if (search != null && search.isNotEmpty) {
+        params['search'] = search;
+      }
+
+      final response = await _dio.get(
+        'inventory/catalogo/',
+        queryParameters: params,
+      );
+
+      final data = response.data;
+      String? nextCursor;
+      final List results;
+
+      if (data is Map && data.containsKey('results')) {
+        results = data['results'] as List;
+        final nextUrl = data['next'] as String?;
+        if (nextUrl != null) {
+          final uri = Uri.parse(nextUrl);
+          nextCursor = uri.queryParameters['cursor'];
+        }
+      } else if (data is List) {
+        results = data;
+      } else {
+        results = [];
+      }
+
+      final productos = results
+          .map((e) => ProductoCatalogoModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      return (productos: productos, nextCursor: nextCursor);
     } on DioException catch (e) {
       final msg = _extractErrorMessage(e);
       throw Exception(msg);
