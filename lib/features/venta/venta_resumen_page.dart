@@ -325,12 +325,14 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
         }
       },
       child: Scaffold(
-        body: SafeArea(
-          child: Column(
-            children: [
-              CustomAppBar(
-                title: 'Ventas',
-                subtitle: 'Registro de operaciones',
+        body: Stack(
+          children: [
+            SafeArea(
+              child: Column(
+                children: [
+                  CustomAppBar(
+                    title: 'Ventas',
+                    subtitle: 'Registro de operaciones',
                 icon: Icons.point_of_sale,
                 isTiendaTitle: esDueno,
                 onTiendaPressed: () => _mostrarSelectorTienda(context, ref, carrito.items.length),
@@ -668,6 +670,10 @@ class _VentaResumenPageState extends ConsumerState<VentaResumenPage> {
           ],
         ),
       ),
+      if (ventaState.isSaving)
+        const LoadingOverlay(message: 'Enviando venta...'),
+    ],
+  ),
       ),
     );
   }

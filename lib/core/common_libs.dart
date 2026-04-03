@@ -17,4 +17,5 @@ export 'utils/format_utils.dart';
 export 'widgets/custom_app_bar.dart';
 export 'widgets/empty_state.dart';
 export 'widgets/error_state.dart';
+export 'widgets/loading_overlay.dart';
 export 'widgets/status_badge.dart';

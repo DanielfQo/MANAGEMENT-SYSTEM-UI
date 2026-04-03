@@ -90,7 +90,7 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F4F7),
-      body: SafeArea(
+      body: Stack(children: [SafeArea(
         child: Column(
           children: [
             CustomAppBar(
@@ -182,6 +182,9 @@ class _VentaPropuestaSunatPageState extends ConsumerState<VentaPropuestaSunatPag
           ],
         ),
       ),
+      if (ventaState.isSaving)
+        const LoadingOverlay(message: 'Confirmando propuesta...'),
+    ]),
     );
   }
 

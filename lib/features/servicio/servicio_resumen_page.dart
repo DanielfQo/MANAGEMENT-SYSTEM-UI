@@ -387,7 +387,7 @@ class _ServicioResumenPageState extends ConsumerState<ServicioResumenPage> {
         }
       },
       child: Scaffold(
-        body: SafeArea(
+        body: Stack(children: [SafeArea(
           child: Column(
             children: [
               CustomAppBar(
@@ -619,7 +619,10 @@ class _ServicioResumenPageState extends ConsumerState<ServicioResumenPage> {
             ],
           ),
         ),
-      ),
+        if (servicioState.isSaving)
+          const LoadingOverlay(message: 'Registrando servicio...'),
+      ]),
+    ),
     );
   }
 
