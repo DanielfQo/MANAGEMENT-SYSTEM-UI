@@ -9,6 +9,7 @@ import 'package:management_system_ui/features/venta/constants/estado_sunat.dart'
 import 'package:management_system_ui/features/venta/models/venta_read_model.dart';
 import 'package:management_system_ui/features/venta/venta_provider.dart';
 import 'package:management_system_ui/features/venta/venta_repository.dart';
+import 'package:management_system_ui/features/servicio/servicio_provider.dart';
 
 class OperacionesHistorialPage extends ConsumerStatefulWidget {
   const OperacionesHistorialPage({super.key});
@@ -65,6 +66,17 @@ class _OperacionesHistorialPageState
   String _ayer() {
     return DateFormat('yyyy-MM-dd')
         .format(DateTime.now().subtract(const Duration(days: 1)));
+  }
+
+  String _inicioSemana() {
+    final now = DateTime.now();
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+    return DateFormat('yyyy-MM-dd').format(monday);
+  }
+
+  String _inicioMes() {
+    final now = DateTime.now();
+    return DateFormat('yyyy-MM-dd').format(DateTime(now.year, now.month, 1));
   }
 
   void _onScroll() {
@@ -237,6 +249,37 @@ class _OperacionesHistorialPageState
     _cargarInicial();
   }
 
+  void _cambiarRango(String desde, String hasta) {
+    setState(() {
+      _usaRango = true;
+      _fechaFiltro = '';
+      _fechaDesde = desde;
+      _fechaHasta = hasta;
+    });
+    _cargarInicial();
+  }
+
+  Future<void> _mostrarDateRangePicker() async {
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      locale: const Locale('es', 'ES'),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: Color(0xFF2F3A8F)),
+        ),
+        child: child!,
+      ),
+    );
+    if (range != null) {
+      _cambiarRango(
+        DateFormat('yyyy-MM-dd').format(range.start),
+        DateFormat('yyyy-MM-dd').format(range.end),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -325,12 +368,41 @@ class _OperacionesHistorialPageState
                                     _fechaFiltro == _hoy(),
                                 onTap: () => _cambiarFecha(_hoy()),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
                               _FechaChip(
                                 label: 'Ayer',
                                 selected: !_usaRango &&
                                     _fechaFiltro == _ayer(),
                                 onTap: () => _cambiarFecha(_ayer()),
+                              ),
+                              const SizedBox(width: 8),
+                              _FechaChip(
+                                label: 'Esta semana',
+                                selected: _usaRango &&
+                                    _fechaDesde == _inicioSemana() &&
+                                    _fechaHasta == _hoy(),
+                                onTap: () => _cambiarRango(_inicioSemana(), _hoy()),
+                              ),
+                              const SizedBox(width: 8),
+                              _FechaChip(
+                                label: 'Este mes',
+                                selected: _usaRango &&
+                                    _fechaDesde == _inicioMes() &&
+                                    _fechaHasta == _hoy(),
+                                onTap: () => _cambiarRango(_inicioMes(), _hoy()),
+                              ),
+                              const SizedBox(width: 8),
+                              _FechaChip(
+                                label: _usaRango &&
+                                        _fechaDesde != _inicioSemana() &&
+                                        _fechaDesde != _inicioMes()
+                                    ? '$_fechaDesde → $_fechaHasta'
+                                    : 'Personalizado',
+                                selected: _usaRango &&
+                                    _fechaDesde != _inicioSemana() &&
+                                    _fechaDesde != _inicioMes(),
+                                icon: Icons.date_range_outlined,
+                                onTap: _mostrarDateRangePicker,
                               ),
                             ],
                           ),
@@ -529,11 +601,13 @@ class _FechaChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final IconData? icon;
 
   const _FechaChip({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.icon,
   });
 
   @override
@@ -554,14 +628,34 @@ class _FechaChip extends StatelessWidget {
             width: 1,
           ),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.grey[700],
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
-        ),
+        child: icon != null
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 14,
+                    color: selected ? Colors.white : Colors.grey[700],
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: selected ? Colors.white : Colors.grey[700],
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              )
+            : Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : Colors.grey[700],
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
       ),
     );
   }
@@ -774,102 +868,29 @@ class _OperacionCard extends StatelessWidget {
   }
 }
 
-class _VentaDetalleSheet extends ConsumerWidget {
+class _VentaDetalleSheet extends ConsumerStatefulWidget {
   final VentaReadModel venta;
 
   const _VentaDetalleSheet({required this.venta});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final canDelete = venta.isActive && venta.estadoSunat != 'ACEPTADO' &&
-        venta.estadoSunat != 'ANULADO';
-    final canAnular = venta.isActive &&
-        venta.estadoSunat == 'ACEPTADO' &&
-        _esHoy(venta.fecha);
-    final canNotaCredito = venta.isActive &&
-        venta.estadoSunat == 'ACEPTADO' &&
-        !_esHoy(venta.fecha);
+  ConsumerState<_VentaDetalleSheet> createState() =>
+      _VentaDetalleSheetState();
+}
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.5,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) => SingleChildScrollView(
-        controller: scrollController,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        venta.numeroComprobante,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        venta.tipoDisplay,
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Total
-              _InfoRow('Total', 'S/. ${venta.total.toStringAsFixed(2)}'),
-              _InfoRow('Fecha',
-                  DateFormat('dd/MM/yyyy HH:mm').format(
-                    DateTime.parse(venta.fecha),
-                  )),
-              _InfoRow('Tipo', venta.tipoDisplay),
-              _InfoRow('Método de pago', venta.metodoPagoDisplay),
-              _InfoRow('Usuario', venta.usuarioTienda.nombre),
-              if (venta.cliente != null)
-                _InfoRow('Cliente', venta.cliente!.nombre),
-              const SizedBox(height: 16),
-              // Botones
-              if (canDelete || canAnular || canNotaCredito) ...[
-                const Divider(),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    if (canDelete)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Cancelar'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade600,
-                          ),
-                          onPressed: () async {
-                            Navigator.pop(context);
-                            await ref
-                                .read(ventaProvider.notifier)
-                                .cancelarVenta(venta.numeroComprobante);
-                          },
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
+class _VentaDetalleSheetState extends ConsumerState<_VentaDetalleSheet> {
+  late TextEditingController _motivoController;
+
+  @override
+  void initState() {
+    super.initState();
+    _motivoController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _motivoController.dispose();
+    super.dispose();
   }
 
   bool _esHoy(String fecha) {
@@ -879,67 +900,269 @@ class _VentaDetalleSheet extends ConsumerWidget {
         hoy.month == fechaDt.month &&
         hoy.day == fechaDt.day;
   }
-}
 
-class _ServicioDetalleSheet extends ConsumerWidget {
-  final ServicioReadModel servicio;
+  Future<void> _confirmarAnulacion() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Motivo de anulación'),
+        content: TextField(
+          controller: _motivoController,
+          decoration: const InputDecoration(
+            hintText: 'Ingresa el motivo...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.pop(context);
+      await ref.read(ventaProvider.notifier).anularVenta(
+            widget.venta.numeroComprobante,
+            codigoTipo: widget.venta.tipoComprobante,
+            motivo: _motivoController.text,
+          );
+    }
+  }
 
-  const _ServicioDetalleSheet({required this.servicio});
+  Future<void> _emitirNotaCredito() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Motivo de nota de crédito'),
+        content: TextField(
+          controller: _motivoController,
+          decoration: const InputDecoration(
+            hintText: 'Ingresa el motivo...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.pop(context);
+      await ref
+          .read(ventaProvider.notifier)
+          .emitirNotaCredito(widget.venta.numeroComprobante);
+    }
+  }
+
+  Future<void> _cancelarVenta() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Cancelar venta'),
+        content: const Text('¿Estás seguro de que deseas cancelar esta venta?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.pop(context);
+      await ref
+          .read(ventaProvider.notifier)
+          .cancelarVenta(widget.venta.numeroComprobante);
+    }
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.5,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) => SingleChildScrollView(
-        controller: scrollController,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+  Widget build(BuildContext context) {
+    final venta = widget.venta;
+    final canDelete = venta.isActive && venta.estadoSunat != 'ACEPTADO' &&
+        venta.estadoSunat != 'ANULADO';
+    final canAnular =
+        venta.isActive && venta.estadoSunat == 'ACEPTADO' && _esHoy(venta.fecha);
+    final canNotaCredito = venta.isActive &&
+        venta.estadoSunat == 'ACEPTADO' &&
+        !_esHoy(venta.fecha);
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Drag handle
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 16),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        servicio.numeroComprobante,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2F3A8F).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.shopping_cart_outlined,
+                        color: Color(0xFF2F3A8F),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            venta.numeroComprobante,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            venta.tipoDisplay,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: EstadoSUNAT.getColor(venta.estadoSunat)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        EstadoSUNAT.getLabel(venta.estadoSunat),
+                        style: TextStyle(
+                          color: EstadoSUNAT.getColor(venta.estadoSunat),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      Text(
-                        servicio.tipoDisplay,
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 16),
-              // Detalles
-              _InfoRow('Total', 'S/. ${servicio.total.toStringAsFixed(2)}'),
-              _InfoRow('Fecha',
-                  DateFormat('dd/MM/yyyy HH:mm').format(
-                    DateTime.parse(servicio.fecha),
-                  )),
-              _InfoRow('Tipo', servicio.tipoDisplay),
-              _InfoRow('Método de pago', servicio.metodoPagoDisplay),
-              _InfoRow('Usuario', servicio.usuarioTienda.nombre),
-              if (servicio.cliente != null)
-                _InfoRow('Cliente', servicio.cliente!.nombre),
-              _InfoRow('Descripción', servicio.descripcion),
-              _InfoRow('Fecha inicio', servicio.fechaInicio),
-              _InfoRow('Fecha fin', servicio.fechaFin),
+              // Sección Financiero
+              _DetalleSection(
+                title: 'Financiero',
+                rows: [
+                  _DetalleRow(
+                    'Total',
+                    'S/. ${venta.total.toStringAsFixed(2)}',
+                    bold: true,
+                  ),
+                  _DetalleRow('Método de pago', venta.metodoPagoDisplay),
+                  _DetalleRow('Tipo', venta.tipoDisplay),
+                ],
+              ),
+              // Sección Cliente
+              if (venta.cliente != null)
+                _DetalleSection(
+                  title: 'Cliente',
+                  rows: [
+                    _DetalleRow('Nombre', venta.cliente!.nombre),
+                    if (venta.cliente!.numeroDocumento.isNotEmpty)
+                      _DetalleRow('Documento', venta.cliente!.numeroDocumento),
+                  ],
+                ),
+              // Sección Registro
+              _DetalleSection(
+                title: 'Registro',
+                rows: [
+                  _DetalleRow(
+                    'Fecha',
+                    DateFormat('dd/MM/yyyy HH:mm').format(
+                      DateTime.parse(venta.fecha),
+                    ),
+                  ),
+                  _DetalleRow('Registrado por', venta.usuarioTienda.nombre),
+                ],
+              ),
+              // Acciones
+              if (canDelete || canAnular || canNotaCredito)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const Divider(),
+                      const SizedBox(height: 12),
+                      if (canAnular)
+                        _ActionButton(
+                          label: 'Anular (SUNAT)',
+                          icon: Icons.cancel_outlined,
+                          color: Colors.orange[700]!,
+                          onTap: _confirmarAnulacion,
+                        ),
+                      if (canNotaCredito)
+                        _ActionButton(
+                          label: 'Nota de crédito',
+                          icon: Icons.undo_outlined,
+                          color: const Color(0xFF2F3A8F),
+                          onTap: _emitirNotaCredito,
+                        ),
+                      if (canDelete)
+                        _ActionButton(
+                          label: 'Cancelar venta',
+                          icon: Icons.delete_outline,
+                          color: Colors.red[600]!,
+                          onTap: _cancelarVenta,
+                        ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -948,28 +1171,441 @@ class _ServicioDetalleSheet extends ConsumerWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
+class _ServicioDetalleSheet extends ConsumerStatefulWidget {
+  final ServicioReadModel servicio;
+
+  const _ServicioDetalleSheet({required this.servicio});
+
+  @override
+  ConsumerState<_ServicioDetalleSheet> createState() =>
+      _ServicioDetalleSheetState();
+}
+
+class _ServicioDetalleSheetState extends ConsumerState<_ServicioDetalleSheet>
+    with SingleTickerProviderStateMixin {
+  late TextEditingController _motivoController;
+
+  @override
+  void initState() {
+    super.initState();
+    _motivoController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _motivoController.dispose();
+    super.dispose();
+  }
+
+  bool _esHoy(String fecha) {
+    final hoy = DateTime.now();
+    final fechaDt = DateTime.parse(fecha);
+    return hoy.year == fechaDt.year &&
+        hoy.month == fechaDt.month &&
+        hoy.day == fechaDt.day;
+  }
+
+  Future<void> _confirmarAnulacion() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Motivo de anulación'),
+        content: TextField(
+          controller: _motivoController,
+          decoration: const InputDecoration(
+            hintText: 'Ingresa el motivo...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.pop(context);
+      await ref.read(servicioProvider.notifier).anularServicio(
+            widget.servicio.numeroComprobante,
+            motivo: _motivoController.text,
+          );
+    }
+  }
+
+  Future<void> _emitirNotaCredito() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Motivo de nota de crédito'),
+        content: TextField(
+          controller: _motivoController,
+          decoration: const InputDecoration(
+            hintText: 'Ingresa el motivo...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.pop(context);
+      await ref.read(servicioProvider.notifier).emitirNotaCredito(
+            widget.servicio.numeroComprobante,
+            motivo: _motivoController.text,
+          );
+    }
+  }
+
+  Future<void> _eliminarServicio() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar servicio'),
+        content: const Text('¿Estás seguro de que deseas eliminar este servicio?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.pop(context);
+      await ref
+          .read(servicioProvider.notifier)
+          .eliminarServicio(widget.servicio.numeroComprobante);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final servicio = widget.servicio;
+    final canEliminar = servicio.isActive &&
+        servicio.estadoSunat != 'ACEPTADO' &&
+        servicio.estadoSunat != 'ANULADO';
+    final canAnular = servicio.isActive &&
+        servicio.estadoSunat == 'ACEPTADO' &&
+        _esHoy(servicio.fecha);
+    final canNotaCredito = servicio.isActive &&
+        servicio.estadoSunat == 'ACEPTADO' &&
+        !_esHoy(servicio.fecha);
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          child: Column(
+            children: [
+              // Drag handle
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 16),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF27AE60).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.build_circle,
+                        color: Color(0xFF27AE60),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            servicio.numeroComprobante,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            servicio.tipoDisplay,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: EstadoSUNAT.getColor(servicio.estadoSunat)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        EstadoSUNAT.getLabel(servicio.estadoSunat),
+                        style: TextStyle(
+                          color: EstadoSUNAT.getColor(servicio.estadoSunat),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Sección Financiero
+              _DetalleSection(
+                title: 'Financiero',
+                rows: [
+                  _DetalleRow(
+                    'Total',
+                    'S/. ${servicio.total.toStringAsFixed(2)}',
+                    bold: true,
+                  ),
+                  _DetalleRow('Método de pago', servicio.metodoPagoDisplay),
+                  _DetalleRow('Tipo', servicio.tipoDisplay),
+                ],
+              ),
+              // Sección Cliente
+              if (servicio.cliente != null)
+                _DetalleSection(
+                  title: 'Cliente',
+                  rows: [
+                    _DetalleRow('Nombre', servicio.cliente!.nombre),
+                    if (servicio.cliente!.numeroDocumento.isNotEmpty)
+                      _DetalleRow('Documento', servicio.cliente!.numeroDocumento),
+                  ],
+                ),
+              // Sección Servicio
+              _DetalleSection(
+                title: 'Servicio',
+                rows: [
+                  _DetalleRow('Descripción', servicio.descripcion),
+                  _DetalleRow('Fecha inicio', servicio.fechaInicio),
+                  _DetalleRow('Fecha fin', servicio.fechaFin),
+                ],
+              ),
+              // Sección Registro
+              _DetalleSection(
+                title: 'Registro',
+                rows: [
+                  _DetalleRow(
+                    'Fecha',
+                    DateFormat('dd/MM/yyyy HH:mm').format(
+                      DateTime.parse(servicio.fecha),
+                    ),
+                  ),
+                  _DetalleRow('Registrado por', servicio.usuarioTienda.nombre),
+                ],
+              ),
+              // Acciones
+              if (canEliminar || canAnular || canNotaCredito)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const Divider(),
+                      const SizedBox(height: 12),
+                      if (canAnular)
+                        _ActionButton(
+                          label: 'Anular (SUNAT)',
+                          icon: Icons.cancel_outlined,
+                          color: Colors.orange[700]!,
+                          onTap: _confirmarAnulacion,
+                        ),
+                      if (canNotaCredito)
+                        _ActionButton(
+                          label: 'Nota de crédito',
+                          icon: Icons.undo_outlined,
+                          color: const Color(0xFF27AE60),
+                          onTap: _emitirNotaCredito,
+                        ),
+                      if (canEliminar)
+                        _ActionButton(
+                          label: 'Eliminar servicio',
+                          icon: Icons.delete_outline,
+                          color: Colors.red[600]!,
+                          onTap: _eliminarServicio,
+                        ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetalleSection extends StatelessWidget {
+  final String title;
+  final List<_DetalleRow> rows;
+
+  const _DetalleSection({
+    required this.title,
+    required this.rows,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F9FB),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...rows
+                .asMap()
+                .entries
+                .map(
+                  (entry) => Column(
+                    children: [
+                      entry.value,
+                      if (entry.key < rows.length - 1)
+                        Divider(color: Colors.grey[300], height: 12),
+                    ],
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetalleRow extends StatelessWidget {
   final String label;
   final String value;
+  final bool bold;
 
-  const _InfoRow(this.label, this.value);
+  const _DetalleRow(
+    this.label,
+    this.value, {
+    this.bold = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
+              fontSize: 13,
+              color: const Color(0xFF1F1F1F),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ],
+      child: OutlinedButton.icon(
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: color, width: 1.5),
+          minimumSize: const Size.fromHeight(44),
+        ),
+        onPressed: onTap,
       ),
     );
   }
