@@ -119,12 +119,12 @@ class ServicioNotifier extends Notifier<ServicioState> {
 
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      final servicios = await _repository.getServicios(
+      final result = await _repository.getServicios(
         tiendaId: tiendaId,
         tipo: tipo,
         search: search,
       );
-      state = state.copyWith(isLoading: false, servicios: servicios);
+      state = state.copyWith(isLoading: false, servicios: result.items);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,

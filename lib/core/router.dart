@@ -15,6 +15,7 @@ import 'package:management_system_ui/features/venta/venta_propuesta_sunat_page.d
 import 'package:management_system_ui/features/venta/venta_comprobante_page.dart';
 import 'package:management_system_ui/features/impresora/impresora_config_page.dart';
 import 'package:management_system_ui/features/operaciones/operaciones_hub_page.dart';
+import 'package:management_system_ui/features/operaciones/operaciones_historial_page.dart';
 import 'package:management_system_ui/features/servicio/servicio_formulario_page.dart';
 import 'package:management_system_ui/features/servicio/servicio_resumen_page.dart';
 import 'package:management_system_ui/features/servicio/servicio_comprobante_page.dart';
@@ -60,6 +61,7 @@ class AppRoutes {
   static const ventasComprobante = '/ventas/comprobante';
 
   static const operaciones = '/operaciones';
+  static const operacionesHistorial = '/operaciones/historial';
   static const servicios = '/servicios';
   static const serviciosResumen = '/servicios/resumen';
   static const serviciosComprobante = '/servicios/comprobante';
@@ -267,6 +269,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.operaciones,
             builder: (context, state) => const OperacionesHubPage(),
+          ),
+          GoRoute(
+            path: AppRoutes.operacionesHistorial,
+            builder: (context, state) => const OperacionesHistorialPage(),
           ),
           GoRoute(
             path: AppRoutes.servicios,

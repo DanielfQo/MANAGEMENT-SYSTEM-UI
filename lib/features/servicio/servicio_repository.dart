@@ -50,18 +50,28 @@ class ServicioRepository {
     }
   }
 
-  /// GET /services/servicio/ - Listar servicios con filtros opcionales
-  Future<List<ServicioReadModel>> getServicios({
+  /// GET /services/servicio/ - Listar servicios con filtros y paginación por cursor
+  Future<ServiciosPageResult> getServicios({
     required int tiendaId,
+    String? fecha,
+    String? fechaDesde,
+    String? fechaHasta,
     String? tipo,
     String? search,
     String? estadoSunat,
+    String? cursor,
+    int? pageSize,
   }) async {
     try {
       final queryParams = <String, dynamic>{'tienda': tiendaId};
+      if (fecha != null) queryParams['fecha'] = fecha;
+      if (fechaDesde != null) queryParams['fecha_desde'] = fechaDesde;
+      if (fechaHasta != null) queryParams['fecha_hasta'] = fechaHasta;
       if (tipo != null) queryParams['tipo'] = tipo;
-      if (search != null) queryParams['search'] = search;
+      if (search != null && search.isNotEmpty) queryParams['search'] = search;
       if (estadoSunat != null) queryParams['estado_sunat'] = estadoSunat;
+      if (cursor != null) queryParams['cursor'] = cursor;
+      if (pageSize != null) queryParams['page_size'] = pageSize;
 
       final response = await _dio.get(
         'services/servicio/',
@@ -70,17 +80,25 @@ class ServicioRepository {
 
       final data = response.data;
       final List results;
+      String? nextCursor;
+
       if (data is Map && data.containsKey('results')) {
         results = data['results'] as List;
+        nextCursor = _extractCursor(data['next'] as String?);
       } else if (data is List) {
         results = data;
+        nextCursor = null;
       } else {
         results = [];
+        nextCursor = null;
       }
 
-      return results
-          .map((e) => ServicioReadModel.fromJson(e))
-          .toList();
+      return ServiciosPageResult(
+        items: results
+            .map((e) => ServicioReadModel.fromJson(e))
+            .toList(),
+        nextCursor: nextCursor,
+      );
     } on DioException catch (e) {
       final errorMsg =
           _extractErrorMessage(e, 'Error al obtener servicios');
@@ -234,4 +252,21 @@ class ServicioRepository {
 
     return defaultMessage;
   }
+
+  /// Helper: Extrae el cursor del parámetro de URL ?cursor=
+  String? _extractCursor(String? nextUrl) {
+    if (nextUrl == null) return null;
+    return Uri.tryParse(nextUrl)?.queryParameters['cursor'];
+  }
+}
+
+/// Modelo de respuesta paginada para servicios
+class ServiciosPageResult {
+  final List<ServicioReadModel> items;
+  final String? nextCursor;
+
+  const ServiciosPageResult({
+    required this.items,
+    required this.nextCursor,
+  });
 }

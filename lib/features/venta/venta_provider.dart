@@ -194,13 +194,13 @@ class VentaNotifier extends Notifier<VentaState> {
 
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      final ventas = await _repository.getVentas(
+      final result = await _repository.getVentas(
         tiendaId: tiendaId,
         tipo: tipo,
         fechaDesde: fechaDesde,
         fechaHasta: fechaHasta,
       );
-      state = state.copyWith(isLoading: false, ventas: ventas);
+      state = state.copyWith(isLoading: false, ventas: result.items);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,

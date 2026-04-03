@@ -34,18 +34,28 @@ class VentaRepository {
     }
   }
 
-  /// GET /ventas/ - Listar ventas con filtros opcionales
-  Future<List<VentaReadModel>> getVentas({
+  /// GET /ventas/ - Listar ventas con filtros y paginación por cursor
+  Future<VentasPageResult> getVentas({
     required int tiendaId,
-    String? tipo,
+    String? fecha,
     String? fechaDesde,
     String? fechaHasta,
+    String? tipo,
+    String? search,
+    String? metodoPago,
+    String? cursor,
+    int? pageSize,
   }) async {
     try {
       final queryParams = <String, dynamic>{'tienda': tiendaId};
-      if (tipo != null) queryParams['tipo'] = tipo;
+      if (fecha != null) queryParams['fecha'] = fecha;
       if (fechaDesde != null) queryParams['fecha_desde'] = fechaDesde;
       if (fechaHasta != null) queryParams['fecha_hasta'] = fechaHasta;
+      if (tipo != null) queryParams['tipo'] = tipo;
+      if (search != null && search.isNotEmpty) queryParams['search'] = search;
+      if (metodoPago != null) queryParams['metodo_pago'] = metodoPago;
+      if (cursor != null) queryParams['cursor'] = cursor;
+      if (pageSize != null) queryParams['page_size'] = pageSize;
 
       final response = await _dio.get(
         'sales/ventas/',
@@ -55,17 +65,25 @@ class VentaRepository {
       // Manejar respuesta paginada o lista directa
       final data = response.data;
       final List results;
+      String? nextCursor;
+
       if (data is Map && data.containsKey('results')) {
         results = data['results'] as List;
+        nextCursor = _extractCursor(data['next'] as String?);
       } else if (data is List) {
         results = data;
+        nextCursor = null;
       } else {
         results = [];
+        nextCursor = null;
       }
 
-      return results
-          .map((e) => VentaReadModel.fromJson(e))
-          .toList();
+      return VentasPageResult(
+        items: results
+            .map((e) => VentaReadModel.fromJson(e))
+            .toList(),
+        nextCursor: nextCursor,
+      );
     } on DioException catch (e) {
       final errorMsg =
           _extractErrorMessage(e, 'Error al obtener ventas');
@@ -370,4 +388,21 @@ class VentaRepository {
 
     return defaultMessage;
   }
+
+  /// Helper: Extrae el cursor del parámetro de URL ?cursor=
+  String? _extractCursor(String? nextUrl) {
+    if (nextUrl == null) return null;
+    return Uri.tryParse(nextUrl)?.queryParameters['cursor'];
+  }
+}
+
+/// Modelo de respuesta paginada para ventas
+class VentasPageResult {
+  final List<VentaReadModel> items;
+  final String? nextCursor;
+
+  const VentasPageResult({
+    required this.items,
+    required this.nextCursor,
+  });
 }
