@@ -284,16 +284,35 @@ class _OperacionesHistorialPageState
                             onChanged: _onSearch,
                             decoration: InputDecoration(
                               hintText: 'Buscar por cliente o comprobante...',
-                              prefixIcon: const Icon(Icons.search),
+                              prefixIcon: const Icon(Icons.search,
+                                  color: Color(0xFF2F3A8F)),
+                              suffixIcon: _searchController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.close, size: 20),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _cargarInicial();
+                                      },
+                                    )
+                                  : null,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
                               ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    BorderSide(color: Colors.grey[300]!),
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
                               contentPadding:
                                   const EdgeInsets.symmetric(horizontal: 16),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         // Chips de fecha
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
@@ -306,7 +325,7 @@ class _OperacionesHistorialPageState
                                     _fechaFiltro == _hoy(),
                                 onTap: () => _cambiarFecha(_hoy()),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 10),
                               _FechaChip(
                                 label: 'Ayer',
                                 selected: !_usaRango &&
@@ -316,43 +335,80 @@ class _OperacionesHistorialPageState
                             ],
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
                         // Chips de tipo
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            children: [
-                              FilterChip(
-                                label: const Text('Todos'),
-                                selected: _filtroTipo == 'todos',
-                                onSelected: (_) => _cambiarTipo('todos'),
-                              ),
-                              const SizedBox(width: 8),
-                              FilterChip(
-                                label: const Text('Ventas'),
-                                selected: _filtroTipo == 'ventas',
-                                onSelected: (_) => _cambiarTipo('ventas'),
-                              ),
-                              const SizedBox(width: 8),
-                              FilterChip(
-                                label: const Text('Servicios'),
-                                selected: _filtroTipo == 'servicios',
-                                onSelected: (_) =>
-                                    _cambiarTipo('servicios'),
-                              ),
-                            ],
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _TipoChip(
+                                  label: 'Todos',
+                                  selected: _filtroTipo == 'todos',
+                                  onSelected: () => _cambiarTipo('todos'),
+                                ),
+                                const SizedBox(width: 10),
+                                _TipoChip(
+                                  label: 'Ventas',
+                                  selected: _filtroTipo == 'ventas',
+                                  onSelected: () => _cambiarTipo('ventas'),
+                                ),
+                                const SizedBox(width: 10),
+                                _TipoChip(
+                                  label: 'Servicios',
+                                  selected: _filtroTipo == 'servicios',
+                                  onSelected: () =>
+                                      _cambiarTipo('servicios'),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         // Lista de operaciones
                         Expanded(
                           child: _items.isEmpty
-                              ? const Center(
-                                  child: Text('No hay operaciones'))
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 32),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.receipt_long_outlined,
+                                          size: 56,
+                                          color: Colors.grey[300],
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'No hay operaciones',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Intenta cambiar los filtros',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
                               : ListView.builder(
                                   controller: _scrollController,
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 16),
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
                                   itemCount: _items.length +
                                       (_hasMoreVentas ||
                                               _hasMoreServicios
@@ -482,10 +538,75 @@ class _FechaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF2F3A8F)
+              : Colors.grey[100],
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF2F3A8F)
+                : Colors.grey[300]!,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.grey[700],
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TipoChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _TipoChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onSelected,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF2F3A8F).withValues(alpha: 0.1)
+              : Colors.grey[100],
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF2F3A8F)
+                : Colors.grey[300]!,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected
+                ? const Color(0xFF2F3A8F)
+                : Colors.grey[700],
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -501,102 +622,151 @@ class _OperacionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fecha =
-        DateFormat('d MMM, HH:mm', 'es_ES').format(
+    final fecha = DateFormat('d MMM', 'es_ES').format(
       DateTime.parse(item.fecha),
     );
+    final hora = DateFormat('HH:mm').format(
+      DateTime.parse(item.fecha),
+    );
+    final iconColor =
+        item.esVenta ? const Color(0xFF2F3A8F) : const Color(0xFF27AE60);
+    final backgroundColor = iconColor.withValues(alpha: 0.08);
 
     return GestureDetector(
       onTap: onTap,
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.grey[200]!,
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: item.esVenta
-                          ? const Color(0xFF2F3A8F)
-                          : const Color(0xFF27AE60),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      item.esVenta ? Icons.shopping_cart : Icons.build,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.numeroComprobante,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
+                  // Primera fila: icono, comprobante, estado
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: backgroundColor,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        Text(
-                          '${item.tipoDisplay} • $fecha',
+                        child: Icon(
+                          item.esVenta
+                              ? Icons.shopping_cart_outlined
+                              : Icons.build_circle,
+                          color: iconColor,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.numeroComprobante,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: Color(0xFF1F1F1F),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item.tipoDisplay,
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: EstadoSUNAT.getColor(item.estadoSunat)
+                              .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          EstadoSUNAT.getLabel(item.estadoSunat),
                           style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
+                            color:
+                                EstadoSUNAT.getColor(item.estadoSunat),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: EstadoSUNAT.getColor(item.estadoSunat)
-                          .withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      EstadoSUNAT.getLabel(item.estadoSunat),
-                      style: TextStyle(
-                        color: EstadoSUNAT.getColor(item.estadoSunat),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
                       ),
-                    ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Segunda fila: cliente, fecha, monto
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          item.clienteNombre ?? 'Sin cliente',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$fecha • $hora',
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'S/. ${item.total.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Color(0xFF1F1F1F),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      item.clienteNombre ?? 'Sin cliente',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 13,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Text(
-                    'S/. ${item.total.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

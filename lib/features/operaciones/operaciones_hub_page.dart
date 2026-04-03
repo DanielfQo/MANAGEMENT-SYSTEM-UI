@@ -2,16 +2,22 @@ import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'package:management_system_ui/features/tienda/tienda_switcher_sheet.dart';
 
-class OperacionesHubPage extends ConsumerWidget {
+class OperacionesHubPage extends ConsumerStatefulWidget {
   const OperacionesHubPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OperacionesHubPage> createState() =>
+      _OperacionesHubPageState();
+}
+
+class _OperacionesHubPageState extends ConsumerState<OperacionesHubPage> {
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
-    final userMe = authState.userMe;
-    final esDueno = userMe?.isDueno ?? false;
+    final esDueno = authState.userMe?.isDueno ?? false;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF2F4F7),
       body: SafeArea(
         child: Column(
           children: [
@@ -24,67 +30,83 @@ class OperacionesHubPage extends ConsumerWidget {
                   esDueno ? () => showTiendaSwitcher(context) : null,
             ),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Cards de acciones rápidas
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ActionCard(
-                            icon: Icons.shopping_cart,
-                            title: 'Nueva Venta',
-                            color: const Color(0xFF2F3A8F),
-                            onTap: () => context.go('/ventas'),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _ActionCard(
-                            icon: Icons.build,
-                            title: 'Nuevo Servicio',
-                            color: const Color(0xFF27AE60),
-                            onTap: () => context.go('/servicios'),
-                          ),
-                        ),
-                      ],
+                    // Cards de acciones
+                    _buildAccionCard(
+                      icon: Icons.shopping_cart,
+                      label: 'Nueva Venta',
+                      subtitle: 'Iniciar una venta desde el catálogo',
+                      color: const Color(0xFF2F3A8F),
+                      onTap: () => context.go('/ventas'),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildAccionCard(
+                      icon: Icons.build,
+                      label: 'Nuevo Servicio',
+                      subtitle: 'Registrar un servicio realizado',
+                      color: const Color(0xFF00897B),
+                      onTap: () => context.go('/servicios'),
                     ),
                     const SizedBox(height: 32),
-                    // Botón para ver historial
+
+                    // Botón al historial mejorado
                     GestureDetector(
                       onTap: () => context.go('/operaciones/historial'),
                       child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 16,
-                        ),
+                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!),
+                          gradient: LinearGradient(
+                            colors: [
+                              const Color(0xFF2F3A8F).withValues(alpha: 0.08),
+                              const Color(0xFF2F3A8F).withValues(alpha: 0.03),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color:
+                                const Color(0xFF2F3A8F).withValues(alpha: 0.25),
+                            width: 1.5,
+                          ),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.history,
-                                color: Colors.grey[700], size: 24),
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2F3A8F)
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.history,
+                                color: Color(0xFF2F3A8F),
+                                size: 26,
+                              ),
+                            ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Historial de operaciones',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
-                                      color: Colors.grey[900],
+                                      color: Color(0xFF1F1F1F),
                                     ),
                                   ),
+                                  const SizedBox(height: 4),
                                   Text(
-                                    'Ver ventas y servicios',
+                                    'Consulta ventas, servicios y transacciones',
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: Colors.grey[600],
@@ -93,8 +115,11 @@ class OperacionesHubPage extends ConsumerWidget {
                                 ],
                               ),
                             ),
-                            Icon(Icons.arrow_forward,
-                                color: Colors.grey[600], size: 20),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              color: Colors.grey[500],
+                              size: 16,
+                            ),
                           ],
                         ),
                       ),
@@ -108,35 +133,26 @@ class OperacionesHubPage extends ConsumerWidget {
       ),
     );
   }
-}
 
-class _ActionCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ActionCard({
-    required this.icon,
-    required this.title,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildAccionCard({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: 0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -145,12 +161,21 @@ class _ActionCard extends StatelessWidget {
             Icon(icon, color: Colors.white, size: 40),
             const SizedBox(height: 12),
             Text(
-              title,
+              label,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
               ),
             ),
           ],
