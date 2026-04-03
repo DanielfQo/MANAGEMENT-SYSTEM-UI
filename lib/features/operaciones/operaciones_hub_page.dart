@@ -1,6 +1,8 @@
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
 import 'package:management_system_ui/features/tienda/tienda_switcher_sheet.dart';
+import 'package:management_system_ui/features/venta/venta_provider.dart';
+import 'package:management_system_ui/features/servicio/servicio_provider.dart';
 
 class OperacionesHubPage extends ConsumerStatefulWidget {
   const OperacionesHubPage({super.key});
@@ -11,6 +13,20 @@ class OperacionesHubPage extends ConsumerStatefulWidget {
 }
 
 class _OperacionesHubPageState extends ConsumerState<OperacionesHubPage> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      ref.read(ventaProvider.notifier).cargarVentas();
+      ref.read(servicioProvider.notifier).cargarServicios();
+    });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -23,108 +39,117 @@ class _OperacionesHubPageState extends ConsumerState<OperacionesHubPage> {
           children: [
             CustomAppBar(
               title: 'Operaciones',
-              subtitle: 'Gestiona tus operaciones',
+              subtitle: 'Ventas y servicios',
               icon: Icons.point_of_sale,
               isTiendaTitle: esDueno,
               onTiendaPressed:
                   esDueno ? () => showTiendaSwitcher(context) : null,
             ),
             Expanded(
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Cards de acciones
-                    _buildAccionCard(
-                      icon: Icons.shopping_cart,
-                      label: 'Nueva Venta',
-                      subtitle: 'Iniciar una venta desde el catálogo',
-                      color: const Color(0xFF2F3A8F),
-                      onTap: () => context.go('/ventas'),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildAccionCard(
-                      icon: Icons.build,
-                      label: 'Nuevo Servicio',
-                      subtitle: 'Registrar un servicio realizado',
-                      color: const Color(0xFF00897B),
-                      onTap: () => context.go('/servicios'),
-                    ),
-                    const SizedBox(height: 32),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await Future.wait([
+                    ref.read(ventaProvider.notifier).cargarVentas(),
+                    ref.read(servicioProvider.notifier).cargarServicios(),
+                  ]);
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Cards de acciones
+                      _buildAccionCard(
+                        icon: Icons.shopping_cart,
+                        label: 'Nueva Venta',
+                        subtitle: 'Iniciar una venta desde el catálogo',
+                        color: const Color(0xFF2F3A8F),
+                        onTap: () => context.go('/ventas'),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildAccionCard(
+                        icon: Icons.build,
+                        label: 'Nuevo Servicio',
+                        subtitle: 'Registrar un servicio realizado',
+                        color: const Color(0xFF00897B),
+                        onTap: () => context.go('/servicios'),
+                      ),
+                      const SizedBox(height: 24),
 
-                    // Botón al historial mejorado
-                    GestureDetector(
-                      onTap: () => context.go('/operaciones/historial'),
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              const Color(0xFF2F3A8F).withValues(alpha: 0.08),
-                              const Color(0xFF2F3A8F).withValues(alpha: 0.03),
+                      // Botón al historial
+                      GestureDetector(
+                        onTap: () =>
+                            context.go('/operaciones/historial'),
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFF2F3A8F).withValues(alpha: 0.08),
+                                const Color(0xFF2F3A8F).withValues(alpha: 0.03),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color:
+                                  const Color(0xFF2F3A8F).withValues(alpha: 0.25),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2F3A8F)
+                                      .withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.history,
+                                  color: Color(0xFF2F3A8F),
+                                  size: 26,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Historial de operaciones',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF1F1F1F),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Consulta ventas, servicios y transacciones',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                color: Colors.grey[500],
+                                size: 16,
+                              ),
                             ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color:
-                                const Color(0xFF2F3A8F).withValues(alpha: 0.25),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2F3A8F)
-                                    .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.history,
-                                color: Color(0xFF2F3A8F),
-                                size: 26,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Historial de operaciones',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF1F1F1F),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Consulta ventas, servicios y transacciones',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              color: Colors.grey[500],
-                              size: 16,
-                            ),
-                          ],
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -144,38 +169,50 @@ class _OperacionesHubPageState extends ConsumerState<OperacionesHubPage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Column(
+        child: Row(
           children: [
-            Icon(icon, color: Colors.white, size: 40),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(12),
               ),
+              child: Icon(icon, color: Colors.white, size: 24),
             ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
