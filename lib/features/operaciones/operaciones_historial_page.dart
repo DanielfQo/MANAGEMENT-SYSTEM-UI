@@ -260,20 +260,15 @@ class _OperacionesHistorialPageState
   }
 
   Future<void> _mostrarDateRangePicker() async {
-    final range = await showModalBottomSheet<DateTimeRange>(
+    final result = await showDialog<Map<String, String>>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
       builder: (context) => _CustomDateRangePicker(
         firstDate: DateTime(2020),
         lastDate: DateTime.now(),
       ),
     );
-    if (range != null) {
-      _cambiarRango(
-        DateFormat('yyyy-MM-dd').format(range.start),
-        DateFormat('yyyy-MM-dd').format(range.end),
-      );
+    if (result != null && result['start'] != null && result['end'] != null) {
+      _cambiarRango(result['start']!, result['end']!);
     }
   }
 
@@ -533,7 +528,7 @@ class _OperacionesHistorialPageState
 }
 
 // ────────────────────────────────────────────────────────────────────
-// Custom Date Range Picker
+// Custom Date Range Picker (Dialog)
 // ────────────────────────────────────────────────────────────────────
 
 class _CustomDateRangePicker extends StatefulWidget {
@@ -551,375 +546,179 @@ class _CustomDateRangePicker extends StatefulWidget {
 }
 
 class _CustomDateRangePickerState extends State<_CustomDateRangePicker> {
-  late DateTime _currentMonth;
   DateTime? _startDate;
   DateTime? _endDate;
 
-  @override
-  void initState() {
-    super.initState();
-    _currentMonth = DateTime.now();
-  }
-
-  void _previousMonth() {
-    setState(() {
-      _currentMonth = DateTime(_currentMonth.year, _currentMonth.month - 1);
-    });
-  }
-
-  void _nextMonth() {
-    setState(() {
-      _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + 1);
-    });
-  }
-
-  void _selectDate(DateTime date) {
-    setState(() {
-      if (_startDate == null) {
-        _startDate = date;
-        _endDate = null;
-      } else if (_endDate == null) {
-        if (date.isBefore(_startDate!)) {
+  Future<void> _selectStartDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? DateTime.now(),
+      firstDate: widget.firstDate,
+      lastDate: widget.lastDate,
+      locale: const Locale('es', 'ES'),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: Color(0xFF2F3A8F)),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() {
+        _startDate = picked;
+        if (_endDate != null && _startDate!.isAfter(_endDate!)) {
           _endDate = _startDate;
-          _startDate = date;
-        } else {
-          _endDate = date;
         }
-      } else {
-        _startDate = date;
-        _endDate = null;
-      }
-    });
+      });
+    }
   }
 
-  bool _isDateInRange(DateTime date) {
-    if (_startDate == null || _endDate == null) return false;
-    return date.isAfter(_startDate!) && date.isBefore(_endDate!);
-  }
-
-  bool _isStartDate(DateTime date) {
-    return _startDate != null && date.day == _startDate!.day &&
-        date.month == _startDate!.month &&
-        date.year == _startDate!.year;
-  }
-
-  bool _isEndDate(DateTime date) {
-    return _endDate != null && date.day == _endDate!.day &&
-        date.month == _endDate!.month &&
-        date.year == _endDate!.year;
+  Future<void> _selectEndDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? (_startDate ?? DateTime.now()),
+      firstDate: _startDate ?? widget.firstDate,
+      lastDate: widget.lastDate,
+      locale: const Locale('es', 'ES'),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: Color(0xFF2F3A8F)),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() => _endDate = picked);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Seleccionar período',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1F1F1F),
-                          ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 24),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Fechas seleccionadas
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8F9FB),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[200]!),
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Seleccionar período',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1F1F1F),
                   ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Desde',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _startDate != null
-                                      ? DateFormat('dd MMM yyyy', 'es_ES')
-                                          .format(_startDate!)
-                                      : 'No seleccionado',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: _startDate != null
-                                        ? const Color(0xFF1F1F1F)
-                                        : Colors.grey[500],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(Icons.arrow_forward,
-                              color: Colors.grey[400], size: 20),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  'Hasta',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _endDate != null
-                                      ? DateFormat('dd MMM yyyy', 'es_ES')
-                                          .format(_endDate!)
-                                      : 'No seleccionado',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: _endDate != null
-                                        ? const Color(0xFF1F1F1F)
-                                        : Colors.grey[500],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+            ),
+            const SizedBox(height: 20),
+            // Fecha inicio
+            _buildDateField(
+              label: 'Desde',
+              date: _startDate,
+              onTap: _selectStartDate,
+            ),
+            const SizedBox(height: 16),
+            // Fecha fin
+            _buildDateField(
+              label: 'Hasta',
+              date: _endDate,
+              onTap: _selectEndDate,
+            ),
+            const SizedBox(height: 24),
+            // Botones
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.grey[600],
+                      side: BorderSide(color: Colors.grey[300]!),
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _startDate != null && _endDate != null
+                        ? () => Navigator.pop(
+                              context,
+                              {
+                                'start': DateFormat('yyyy-MM-dd').format(_startDate!),
+                                'end': DateFormat('yyyy-MM-dd').format(_endDate!),
+                              },
+                            )
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2F3A8F),
+                      disabledBackgroundColor: Colors.grey[300],
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                    child: const Text(
+                      'Aplicar',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-          // Calendarios
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  _buildCalendarMonth(_currentMonth),
-                  if (_currentMonth.isBefore(
-                      DateTime(_currentMonth.year, _currentMonth.month + 1)))
-                    const SizedBox(height: 24),
-                  if (_currentMonth.isBefore(
-                      DateTime(_currentMonth.year, _currentMonth.month + 1)))
-                    _buildCalendarMonth(
-                        DateTime(_currentMonth.year, _currentMonth.month + 1)),
-                ],
-              ),
-            ),
-          ),
-          // Botones de navegación y acción
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed:
-                          _currentMonth.month > 1 || _currentMonth.year > 2020
-                              ? _previousMonth
-                              : null,
-                      icon: const Icon(Icons.chevron_left, size: 20),
-                      label: const Text('Anterior'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[100],
-                        foregroundColor: const Color(0xFF2F3A8F),
-                        disabledBackgroundColor: Colors.grey[50],
-                        disabledForegroundColor: Colors.grey[400],
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _currentMonth.isBefore(DateTime.now())
-                          ? _nextMonth
-                          : null,
-                      label: const Text('Siguiente'),
-                      icon: const Icon(Icons.chevron_right, size: 20),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[100],
-                        foregroundColor: const Color(0xFF2F3A8F),
-                        disabledBackgroundColor: Colors.grey[50],
-                        disabledForegroundColor: Colors.grey[400],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey[600],
-                          side: BorderSide(color: Colors.grey[300]!),
-                          minimumSize: const Size.fromHeight(44),
-                        ),
-                        child: const Text('Cancelar'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _startDate != null && _endDate != null
-                            ? () => Navigator.pop(
-                                  context,
-                                  DateTimeRange(
-                                    start: _startDate!,
-                                    end: _endDate!,
-                                  ),
-                                )
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2F3A8F),
-                          disabledBackgroundColor: Colors.grey[300],
-                          minimumSize: const Size.fromHeight(44),
-                        ),
-                        child: const Text(
-                          'Aplicar',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildCalendarMonth(DateTime month) {
-    final firstDayOfMonth = DateTime(month.year, month.month, 1);
-    final lastDayOfMonth = DateTime(month.year, month.month + 1, 0);
-    final weekdayOfFirstDay = firstDayOfMonth.weekday;
-    final daysInMonth = lastDayOfMonth.day;
-
-    final months = [
-      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${months[month.month - 1][0].toUpperCase()}${months[month.month - 1].substring(1)} ${month.year}',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1F1F1F),
-          ),
+  Widget _buildDateField({
+    required String label,
+    required DateTime? date,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.grey[50],
         ),
-        const SizedBox(height: 12),
-        // Encabezados de días
-        Row(
-          children: ['L', 'M', 'M', 'J', 'V', 'S', 'D']
-              .map(
-                (day) => Expanded(
-                  child: Center(
-                    child: Text(
-                      day,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[600],
-                      ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
-              )
-              .toList(),
-        ),
-        const SizedBox(height: 8),
-        // Días del mes
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            childAspectRatio: 1.2,
-            mainAxisSpacing: 4,
-            crossAxisSpacing: 4,
-          ),
-          itemCount: 42,
-          itemBuilder: (context, index) {
-            final dayNumber = index - weekdayOfFirstDay + 2;
-
-            if (dayNumber < 1 || dayNumber > daysInMonth) {
-              return const SizedBox.shrink();
-            }
-
-            final date = DateTime(month.year, month.month, dayNumber);
-            final isDisabled = date.isAfter(widget.lastDate);
-            final isStart = _isStartDate(date);
-            final isEnd = _isEndDate(date);
-            final isInRange = _isDateInRange(date);
-
-            return GestureDetector(
-              onTap: isDisabled ? null : () => _selectDate(date),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isStart || isEnd
-                      ? const Color(0xFF2F3A8F)
-                      : isInRange
-                          ? const Color(0xFF2F3A8F).withValues(alpha: 0.1)
-                          : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(
-                    dayNumber.toString(),
+                  const SizedBox(height: 4),
+                  Text(
+                    date != null
+                        ? DateFormat('dd MMM yyyy', 'es_ES').format(date)
+                        : 'Seleccionar fecha',
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: isStart || isEnd ? FontWeight.w700 : FontWeight.w500,
-                      color: isStart || isEnd
-                          ? Colors.white
-                          : isDisabled
-                              ? Colors.grey[300]
-                              : Colors.grey[800],
+                      fontWeight: FontWeight.w600,
+                      color: date != null ? const Color(0xFF1F1F1F) : Colors.grey[500],
                     ),
                   ),
-                ),
+                ],
               ),
-            );
-          },
+            ),
+            Icon(
+              Icons.calendar_today,
+              color: Colors.grey[400],
+              size: 20,
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
