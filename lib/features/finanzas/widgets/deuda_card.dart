@@ -90,10 +90,13 @@ class DeudaCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Comprobante #${deuda.origenId}',
+                      deuda.numeroComprobante != null &&
+                              deuda.numeroComprobante!.isNotEmpty
+                          ? 'Comprobante ${deuda.numeroComprobante}'
+                          : 'Comprobante #${deuda.origenId}',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Colors.grey,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -113,7 +116,7 @@ class DeudaCard extends StatelessWidget {
               _MontoChip(
                 label: 'Total',
                 value: 'S/ ${deuda.montoTotal}',
-                color: Colors.grey[700]!,
+                color: AppColors.textSecondary,
               ),
               const SizedBox(width: 8),
               _MontoChip(
@@ -147,7 +150,7 @@ class DeudaCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '${(progreso * 100).toStringAsFixed(0)}% pagado',
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
+            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
           ),
 
           // ── Pagos previos ─────────────────────────────────────────────
@@ -157,14 +160,14 @@ class DeudaCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                const Icon(Icons.history, size: 13, color: Colors.grey),
+                const Icon(Icons.history, size: 13, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
                 Text(
                   '${deuda.pagos.length} pago(s) previo(s)',
                   style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -184,7 +187,7 @@ class DeudaCard extends StatelessWidget {
                         Text(
                           pago.fecha,
                           style: const TextStyle(
-                              fontSize: 12, color: Colors.grey),
+                              fontSize: 12, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
@@ -263,7 +266,7 @@ class _MontoChip extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
+              style: const TextStyle(fontSize: 10, color: AppColors.textTertiary),
             ),
             const SizedBox(height: 2),
             Text(

@@ -8,9 +8,14 @@ class AppColors {
   // Background colors
   static const Color lightBackground = Color(0xFFF6F7FB);
 
-  // Text colors
-  static const Color textPrimary = Colors.black;
-  static const Color textSecondary = Colors.grey;
+  // Text colors (WCAG AA sobre fondo blanco)
+  static const Color textPrimary = Color(0xFF1A1A1A);
+  static const Color textSecondary = Color(0xFF4A4A4A);
+  static const Color textTertiary = Color(0xFF6B6B6B);
+  static const Color textDisabled = Color(0xFF9E9E9E);
+
+  // Border / divider
+  static const Color borderLight = Color(0xFFE0E0E0);
 
   // Status colors
   static const Color success = Colors.green;

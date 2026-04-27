@@ -467,7 +467,7 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
             content: const Text('Configura la impresora primero'),
             action: SnackBarAction(
               label: 'Configurar',
-              onPressed: () => context.go('/config/impresora'),
+              onPressed: () => context.push('/config/impresora'),
             ),
           ),
         );
@@ -579,17 +579,22 @@ class _VentaComprobantePageState extends ConsumerState<VentaComprobantePage> {
     );
   }
 
-  /// Envía el PDF a la impresora WiFi
+  /// Envía el PDF a la impresora según el tipo de conexión configurado
   Future<void> _enviarAImpresora(Uint8List pdfBytes, dynamic config) async {
     try {
       setState(() => _imprimiendo = true);
 
-      // Convertir PDF a comandos ESC/POS
+      // Convertir PDF a comandos ESC/POS (renderiza como imagen)
       final comandos = await TicketConverter.pdfAEscPos(pdfBytes);
-
-      // Enviar a la impresora
       final repository = ref.read(impresoraRepositoryProvider);
-      await repository.enviarAImpresora(config.ip, config.puerto, comandos);
+
+      if (config is ImpresoraConfig && config.esUsbCups) {
+        // USB/CUPS: enviar ESC/POS vía comando lp
+        await repository.enviarViaCups(comandos);
+      } else {
+        // WiFi: enviar por TCP socket
+        await repository.enviarAImpresora(config.ip, config.puerto, comandos);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

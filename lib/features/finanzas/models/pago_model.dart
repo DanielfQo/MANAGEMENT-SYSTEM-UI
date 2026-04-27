@@ -3,6 +3,7 @@ class PagoModel {
   final int clienteId;
   final int origenId;
   final String tipoOrigen;
+  final String? numeroComprobante;
   final String fecha;
   final String monto;
 
@@ -11,6 +12,7 @@ class PagoModel {
     required this.clienteId,
     required this.origenId,
     required this.tipoOrigen,
+    this.numeroComprobante,
     required this.fecha,
     required this.monto,
   });
@@ -21,6 +23,7 @@ class PagoModel {
       clienteId: json['cliente_id'] ?? 0,
       origenId: json['origen_id'] ?? 0,
       tipoOrigen: json['tipo_origen'] ?? '',
+      numeroComprobante: json['numero_comprobante'] as String?,
       fecha: json['fecha'] ?? '',
       monto: json['monto']?.toString() ?? '0',
     );

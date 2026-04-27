@@ -524,7 +524,7 @@ class _ServicioComprobantePageState
             content: const Text('Configura la impresora primero'),
             action: SnackBarAction(
               label: 'Configurar',
-              onPressed: () => context.go('/config/impresora'),
+              onPressed: () => context.push('/config/impresora'),
             ),
           ),
         );
@@ -639,9 +639,17 @@ class _ServicioComprobantePageState
     try {
       setState(() => _imprimiendo = true);
 
+      // Convertir PDF a comandos ESC/POS (renderiza como imagen)
       final comandos = await TicketConverter.pdfAEscPos(pdfBytes);
       final repository = ref.read(impresoraRepositoryProvider);
-      await repository.enviarAImpresora(config.ip, config.puerto, comandos);
+
+      if (config is ImpresoraConfig && config.esUsbCups) {
+        // USB/CUPS: enviar ESC/POS vía comando lp
+        await repository.enviarViaCups(comandos);
+      } else {
+        // WiFi: enviar por TCP socket
+        await repository.enviarAImpresora(config.ip, config.puerto, comandos);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

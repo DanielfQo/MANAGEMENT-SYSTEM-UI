@@ -100,7 +100,7 @@ class _DeudasPageState extends ConsumerState<DeudasPage>
                 indicatorColor: const Color(0xFF2F3A8F),
                 indicatorWeight: 3,
                 labelColor: const Color(0xFF2F3A8F),
-                unselectedLabelColor: Colors.grey,
+                unselectedLabelColor: AppColors.textSecondary,
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold),
                 tabs: const [
                   Tab(text: 'Deudas'),
@@ -341,7 +341,7 @@ class _DeudasPageState extends ConsumerState<DeudasPage>
             children: [
               Text(
                 'Saldo: S/ ${deuda.saldo}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -515,12 +515,15 @@ class _PagoCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Row(
                   children: [
-                    const Icon(Icons.tag, size: 12, color: Colors.grey),
+                    const Icon(Icons.tag, size: 12, color: AppColors.textSecondary),
                     const SizedBox(width: 3),
                     Text(
-                      'Comprobante #${pago.origenId}',
-                      style:
-                          const TextStyle(fontSize: 12, color: Colors.grey),
+                      pago.numeroComprobante != null &&
+                              pago.numeroComprobante!.isNotEmpty
+                          ? 'Comprobante ${pago.numeroComprobante}'
+                          : 'Comprobante #${pago.origenId}',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -528,12 +531,12 @@ class _PagoCard extends StatelessWidget {
                 Row(
                   children: [
                     const Icon(Icons.calendar_today_outlined,
-                        size: 12, color: Colors.grey),
+                        size: 12, color: AppColors.textSecondary),
                     const SizedBox(width: 3),
                     Text(
                       pago.fecha,
-                      style:
-                          const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),

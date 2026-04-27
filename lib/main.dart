@@ -4,8 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'dart:async';
 import 'core/router.dart';
-// Importa tus carpetas de core cuando las tengas listas
-// import 'package:management_system_ui/core/common_libs.dart'; 
+import 'core/theme/app_colors.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,7 +67,19 @@ class _MyAppState extends ConsumerState<MyApp> {
       title: 'Sistema de Gestión de Inventario',
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
+        colorSchemeSeed: AppColors.primary,
+        scaffoldBackgroundColor: AppColors.lightBackground,
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: AppColors.textPrimary),
+          bodyMedium: TextStyle(color: AppColors.textPrimary),
+          bodySmall: TextStyle(color: AppColors.textSecondary),
+          titleLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
+          titleMedium: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+          titleSmall: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+          labelLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+          labelMedium: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+          labelSmall: TextStyle(color: AppColors.textTertiary, fontWeight: FontWeight.w500),
+        ),
       ),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

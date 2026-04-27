@@ -99,9 +99,9 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
                                   const SizedBox(height: 4),
                                   Text(
                                     'Monto pagado: S/ ${widget.montoRegistrado}',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       fontSize: 12,
-                                      color: Colors.grey[700],
+                                      color: AppColors.textSecondary,
                                     ),
                                   ),
                                 ],
@@ -116,7 +116,7 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
+                          border: Border.all(color: AppColors.borderLight),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Column(
@@ -129,7 +129,7 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
                                   'ID Deuda',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey,
+                                    color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -147,7 +147,7 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
                                   'Monto Total',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey,
+                                    color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -165,7 +165,7 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
                                   'Saldo Anterior',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey,
+                                    color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -183,7 +183,7 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
                                   'Nuevo Saldo',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey,
+                                    color: AppColors.textSecondary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -229,60 +229,7 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
                       ],
 
                       // Botones de acción
-                      OutlinedButton.icon(
-                        icon: _descargando
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.download),
-                        label: Text(
-                          _descargando ? 'Descargando...' : 'Descargar PDF',
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: _descargando || _imprimiendo
-                            ? null
-                            : () => _descargarPdf(pdfBytes),
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        icon: _imprimiendo
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white),
-                                ),
-                              )
-                            : const Icon(Icons.print),
-                        label: Text(
-                          _imprimiendo ? 'Imprimiendo...' : 'Imprimir',
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          disabledBackgroundColor: Colors.grey[400],
-                        ),
-                        onPressed: _imprimiendo || _descargando
-                            ? null
-                            : () => _imprimirTicket(pdfBytes),
-                      ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.preview),
-                        label: const Text('Ver comprobante'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: _imprimiendo || _descargando
-                            ? null
-                            : () => _verComprobante(pdfBytes),
-                      ),
+                      _buildAccionesSection(pdfBytes),
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
@@ -312,6 +259,72 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
     );
   }
 
+  Widget _buildAccionesSection(Uint8List pdfBytes) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Acciones del comprobante',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          icon: _descargando
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.download),
+          label: Text(
+            _descargando ? 'Descargando...' : 'Descargar PDF',
+          ),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          onPressed: _descargando || _imprimiendo
+              ? null
+              : () => _descargarPdf(pdfBytes),
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          icon: _imprimiendo
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Icon(Icons.print),
+          label: Text(
+            _imprimiendo ? 'Imprimiendo...' : 'Imprimir',
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            disabledBackgroundColor: Colors.grey[400],
+          ),
+          onPressed: _imprimiendo || _descargando
+              ? null
+              : () => _imprimirTicket(pdfBytes),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.preview),
+          label: const Text('Ver comprobante'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          onPressed: _imprimiendo || _descargando
+              ? null
+              : () => _verComprobante(pdfBytes),
+        ),
+      ],
+    );
+  }
+
   Future<void> _imprimirTicket(Uint8List pdfBytes) async {
     final config = ref.read(impresoraConfigProvider);
 
@@ -322,7 +335,7 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
             content: const Text('Configura la impresora primero'),
             action: SnackBarAction(
               label: 'Configurar',
-              onPressed: () => context.go('/config/impresora'),
+              onPressed: () => context.push('/config/impresora'),
             ),
           ),
         );
@@ -425,7 +438,12 @@ class _PagoResumenPageState extends ConsumerState<PagoResumenPage> {
 
       final comandos = await TicketConverter.pdfAEscPos(pdfBytes);
       final repository = ref.read(impresoraRepositoryProvider);
-      await repository.enviarAImpresora(config.ip, config.puerto, comandos);
+
+      if (config is ImpresoraConfig && config.esUsbCups) {
+        await repository.enviarViaCups(comandos);
+      } else {
+        await repository.enviarAImpresora(config.ip, config.puerto, comandos);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

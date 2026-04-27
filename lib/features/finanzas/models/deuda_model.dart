@@ -19,6 +19,7 @@ class DeudaModel {
   final int id;
   final int origenId;
   final String tipoOrigen;
+  final String? numeroComprobante;
   final String montoTotal;
   final String saldo;
   final String estado;
@@ -28,6 +29,7 @@ class DeudaModel {
     required this.id,
     required this.origenId,
     required this.tipoOrigen,
+    this.numeroComprobante,
     required this.montoTotal,
     required this.saldo,
     required this.estado,
@@ -39,6 +41,7 @@ class DeudaModel {
       id: json['id'] ?? 0,
       origenId: json['origen_id'] ?? 0,
       tipoOrigen: json['tipo_origen'] ?? '',
+      numeroComprobante: json['numero_comprobante'] as String?,
       montoTotal: json['monto_total']?.toString() ?? '0',
       saldo: json['saldo']?.toString() ?? '0',
       estado: json['estado'] ?? 'ACTIVA',
