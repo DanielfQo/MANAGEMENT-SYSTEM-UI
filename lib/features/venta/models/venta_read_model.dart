@@ -36,6 +36,7 @@ class UsuarioInfo {
 
 class VentaLineaModel {
   final int id;
+  final int? loteProductoId;
   final String productoNombre;
   final String productoCodigo;
   final String unidadMedida;
@@ -46,6 +47,7 @@ class VentaLineaModel {
 
   VentaLineaModel({
     required this.id,
+    this.loteProductoId,
     required this.productoNombre,
     required this.productoCodigo,
     required this.unidadMedida,
@@ -58,6 +60,7 @@ class VentaLineaModel {
   factory VentaLineaModel.fromJson(Map<String, dynamic> json) {
     return VentaLineaModel(
       id: json['id'],
+      loteProductoId: json['lote_producto_id'] as int?,
       productoNombre: json['producto_nombre'] ?? '',
       productoCodigo: json['producto_codigo'] ?? '',
       unidadMedida: json['unidad_medida'] ?? '',
@@ -145,6 +148,26 @@ class PropuestaSunatItem {
   }
 }
 
+class NotaCreditoItemNc {
+  final int loteProductoId;
+  final String cantidad;
+  final String? precioNuevo;
+
+  const NotaCreditoItemNc({
+    required this.loteProductoId,
+    required this.cantidad,
+    this.precioNuevo,
+  });
+
+  factory NotaCreditoItemNc.fromJson(Map<String, dynamic> json) {
+    return NotaCreditoItemNc(
+      loteProductoId: (json['lote_producto_id'] as int?) ?? 0,
+      cantidad: json['cantidad']?.toString() ?? '0',
+      precioNuevo: json['precio_nuevo']?.toString(),
+    );
+  }
+}
+
 class NotaCreditoModel {
   final int id;
   final String tipoComprobante;
@@ -157,6 +180,7 @@ class NotaCreditoModel {
   final String? urlCdr;
   final String motivo;
   final String fecha;
+  final List<NotaCreditoItemNc> itemsNc;
 
   NotaCreditoModel({
     required this.id,
@@ -170,6 +194,7 @@ class NotaCreditoModel {
     this.urlCdr,
     required this.motivo,
     required this.fecha,
+    this.itemsNc = const [],
   });
 
   factory NotaCreditoModel.fromJson(Map<String, dynamic> json) {
@@ -185,6 +210,10 @@ class NotaCreditoModel {
       urlCdr: json['url_cdr'],
       motivo: json['motivo'] ?? '',
       fecha: json['fecha'] ?? '',
+      itemsNc: (json['items_nc'] as List?)
+              ?.map((i) => NotaCreditoItemNc.fromJson(i))
+              .toList() ??
+          [],
     );
   }
 }

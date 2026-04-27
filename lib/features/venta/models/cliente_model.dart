@@ -23,8 +23,8 @@ class ClienteModel {
 
   factory ClienteModel.fromJson(Map<String, dynamic> json) {
     return ClienteModel(
-      id: json['id'],
-      nombre: json['nombre'],
+      id: (json['id'] as int?) ?? 0,
+      nombre: json['nombre']?.toString() ?? '',
       tipoDocumento: json['tipo_documento'] ?? '1',
       tipoDocumentoDisplay: json['tipo_documento_display'] ?? 'DNI',
       numeroDocumento: json['numero_documento'] ?? '',

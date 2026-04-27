@@ -4,6 +4,7 @@ import 'package:management_system_ui/features/venta/models/cliente_model.dart';
 import 'package:management_system_ui/features/venta/constants/tipo_venta.dart';
 import 'package:management_system_ui/features/venta/constants/metodo_pago.dart';
 import 'package:management_system_ui/features/venta/constants/tipo_comprobante.dart';
+import 'package:management_system_ui/features/servicio/models/nota_credito_data.dart';
 import 'package:management_system_ui/features/servicio/models/servicio_create_model.dart';
 import 'package:management_system_ui/features/servicio/models/servicio_read_model.dart';
 import 'package:management_system_ui/features/servicio/servicio_repository.dart' show ServicioRepository, servicioRepositoryProvider;
@@ -191,26 +192,32 @@ class ServicioNotifier extends Notifier<ServicioState> {
     }
   }
 
-  Future<void> emitirNotaCredito(
+  Future<NotaCreditoData?> emitirNotaCredito(
     String numeroComprobante, {
+    String codigoTipo = '01',
     required String motivo,
+    String? precioNuevo,
   }) async {
     state = state.copyWith(isSaving: true, errorMessage: null);
     try {
-      await _repository.emitirNotaCredito(
+      final result = await _repository.emitirNotaCredito(
         numeroComprobante,
+        codigoTipo: codigoTipo,
         motivo: motivo,
+        precioNuevo: precioNuevo,
       );
       state = state.copyWith(
         isSaving: false,
         successMessage: 'Nota de crédito emitida exitosamente',
       );
       await cargarServicios();
+      return result.notaCredito;
     } catch (e) {
       state = state.copyWith(
         isSaving: false,
         errorMessage: e.toString(),
       );
+      return null;
     }
   }
 

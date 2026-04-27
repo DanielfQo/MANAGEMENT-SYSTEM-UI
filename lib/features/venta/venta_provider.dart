@@ -282,14 +282,12 @@ class VentaNotifier extends Notifier<VentaState> {
 
   Future<void> anularVenta(
     String numeroComprobante, {
-    required String codigoTipo,
-    required String motivo,
+    String motivo = '',
   }) async {
     state = state.copyWith(isSaving: true, errorMessage: null);
     try {
       await _repository.anularVenta(
         numeroComprobante,
-        codigoTipo: codigoTipo,
         motivo: motivo,
       );
       state = state.copyWith(
@@ -305,20 +303,32 @@ class VentaNotifier extends Notifier<VentaState> {
     }
   }
 
-  Future<void> emitirNotaCredito(String numeroComprobante) async {
+  Future<VentaReadModel?> emitirNotaCredito(
+    String numeroComprobante, {
+    String codigoTipo = '01',
+    String motivo = '',
+    List<NotaCreditoItemInput>? items,
+  }) async {
     state = state.copyWith(isSaving: true, errorMessage: null);
     try {
-      await _repository.emitirNotaCredito(numeroComprobante);
+      final venta = await _repository.emitirNotaCredito(
+        numeroComprobante,
+        codigoTipo: codigoTipo,
+        motivo: motivo,
+        items: items,
+      );
       state = state.copyWith(
         isSaving: false,
         successMessage: 'Nota de crédito emitida exitosamente',
       );
       await cargarVentas();
+      return venta;
     } catch (e) {
       state = state.copyWith(
         isSaving: false,
         errorMessage: e.toString(),
       );
+      return null;
     }
   }
 

@@ -1,12 +1,21 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:management_system_ui/core/common_libs.dart';
 import 'package:management_system_ui/features/auth/auth_provider.dart';
+import 'package:management_system_ui/features/impresora/impresora_provider.dart';
+import 'package:management_system_ui/features/impresora/impresora_repository.dart';
+import 'package:management_system_ui/features/impresora/ticket_converter.dart';
+import 'package:management_system_ui/features/servicio/models/nota_credito_data.dart';
 import 'package:management_system_ui/features/servicio/models/servicio_read_model.dart';
 import 'package:management_system_ui/features/servicio/servicio_repository.dart';
 import 'package:management_system_ui/features/tienda/tienda_switcher_sheet.dart';
 import 'package:management_system_ui/features/venta/constants/estado_sunat.dart';
 import 'package:management_system_ui/features/venta/models/venta_read_model.dart';
+import 'package:management_system_ui/features/venta/services/printing_service.dart';
 import 'package:management_system_ui/features/venta/venta_provider.dart';
 import 'package:management_system_ui/features/venta/venta_repository.dart';
 import 'package:management_system_ui/features/servicio/servicio_provider.dart';
@@ -508,21 +517,19 @@ class _OperacionesHistorialPageState
     );
   }
 
-  void _mostrarDetalle(BuildContext context, _OperacionItem item) {
-    if (item.esVenta) {
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (context) =>
-            _VentaDetalleSheet(venta: item.venta!),
-      );
-    } else {
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (context) =>
-            _ServicioDetalleSheet(servicio: item.servicio!),
-      );
+  Future<void> _mostrarDetalle(
+    BuildContext context,
+    _OperacionItem item,
+  ) async {
+    final actuado = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => item.esVenta
+          ? _VentaDetalleSheet(venta: item.venta!)
+          : _ServicioDetalleSheet(servicio: item.servicio!),
+    );
+    if (actuado == true && mounted) {
+      await _cargarInicial();
     }
   }
 }
@@ -727,6 +734,20 @@ class _CustomDateRangePickerState extends State<_CustomDateRangePicker> {
 // Modelos y Widgets privados
 // ────────────────────────────────────────────────────────────────────
 
+// Fallback cuando el backend no envía `tipo_display` (p.ej. en servicios).
+String _labelTipoOperacion(String tipo) {
+  switch (tipo.toUpperCase()) {
+    case 'NORMAL':
+      return 'Operación normal';
+    case 'CREDITO':
+      return 'Operación a crédito';
+    case 'SUNAT':
+      return 'Operación con comprobante SUNAT';
+    default:
+      return tipo;
+  }
+}
+
 class _OperacionItem {
   final bool esVenta;
   final String numeroComprobante;
@@ -755,11 +776,15 @@ class _OperacionItem {
   });
 
   factory _OperacionItem.fromVenta(VentaReadModel venta) {
+    final detalle = venta.tipoDisplay.isNotEmpty
+        ? venta.tipoDisplay
+        : _labelTipoOperacion(venta.tipo);
     return _OperacionItem(
       esVenta: true,
       numeroComprobante: venta.numeroComprobante,
       tipo: venta.tipo,
-      tipoDisplay: venta.tipoDisplay,
+      tipoDisplay:
+          detalle.isNotEmpty ? 'Venta · $detalle' : 'Venta',
       total: venta.total,
       fecha: venta.fecha,
       estadoSunat: venta.estadoSunat,
@@ -770,11 +795,15 @@ class _OperacionItem {
   }
 
   factory _OperacionItem.fromServicio(ServicioReadModel servicio) {
+    final detalle = servicio.tipoDisplay.isNotEmpty
+        ? servicio.tipoDisplay
+        : _labelTipoOperacion(servicio.tipo);
     return _OperacionItem(
       esVenta: false,
       numeroComprobante: servicio.numeroComprobante,
       tipo: servicio.tipo,
-      tipoDisplay: servicio.tipoDisplay,
+      tipoDisplay:
+          detalle.isNotEmpty ? 'Servicio · $detalle' : 'Servicio',
       total: servicio.total,
       fecha: servicio.fecha,
       estadoSunat: servicio.estadoSunat,
@@ -977,8 +1006,8 @@ class _OperacionCard extends StatelessWidget {
                             const SizedBox(height: 2),
                             Text(
                               item.tipoDisplay,
-                              style: TextStyle(
-                                color: Colors.grey[600],
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -1083,99 +1112,278 @@ class _VentaDetalleSheetState extends ConsumerState<_VentaDetalleSheet> {
 
   bool _esHoy(String fecha) {
     final hoy = DateTime.now();
-    final fechaDt = DateTime.parse(fecha);
+    // `fecha` viene del backend en UTC (ISO 8601 con Z). Hay que
+    // convertirlo a local antes de comparar día/mes/año, si no una
+    // venta de anoche local aparece como "hoy" en UTC y la UI ofrece
+    // "Anular" cuando el backend ya solo acepta "Nota de crédito".
+    final fechaDt = DateTime.parse(fecha).toLocal();
     return hoy.year == fechaDt.year &&
         hoy.month == fechaDt.month &&
         hoy.day == fechaDt.day;
   }
 
+  int _diasDesdeEmision(String fecha) {
+    final hoy = DateTime.now();
+    final fechaDt = DateTime.parse(fecha).toLocal();
+    final hoyNorm = DateTime(hoy.year, hoy.month, hoy.day);
+    final fechaNorm = DateTime(fechaDt.year, fechaDt.month, fechaDt.day);
+    return hoyNorm.difference(fechaNorm).inDays;
+  }
+
   Future<void> _confirmarAnulacion() async {
-    final confirmed = await showDialog<bool>(
+    final result = await showModalBottomSheet<_ConfirmacionResult>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Motivo de anulación'),
-        content: TextField(
-          controller: _motivoController,
-          decoration: const InputDecoration(
-            hintText: 'Ingresa el motivo...',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ConfirmacionOperacionSheet(
+        titulo: 'Anular venta',
+        descripcion:
+            'La venta se comunicará a SUNAT como anulada. '
+            'Ingresa el motivo de la anulación.',
+        botonLabel: 'Anular',
+        botonColor: Color(0xFFE67E00),
+        pedirCodigoTipo: false,
       ),
     );
-    if (confirmed == true && mounted) {
-      Navigator.pop(context);
+    if (result == null || !result.confirmado || !mounted) return;
+    try {
       await ref.read(ventaProvider.notifier).anularVenta(
             widget.venta.numeroComprobante,
-            codigoTipo: widget.venta.tipoComprobante,
-            motivo: _motivoController.text,
+            motivo: result.motivo,
           );
+      final error = ref.read(ventaProvider).errorMessage;
+      if (!mounted) return;
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: Colors.red),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Venta anulada ante SUNAT')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
   Future<void> _emitirNotaCredito() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Motivo de nota de crédito'),
-        content: TextField(
-          controller: _motivoController,
-          decoration: const InputDecoration(
-            hintText: 'Ingresa el motivo...',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted) {
-      Navigator.pop(context);
-      await ref
-          .read(ventaProvider.notifier)
-          .emitirNotaCredito(widget.venta.numeroComprobante);
+    // Fetch full detail so detalle items include lote_producto_id (needed for tipos 07/09)
+    VentaReadModel ventaDetalle;
+    try {
+      ventaDetalle = await ref
+          .read(ventaRepositoryProvider)
+          .getVentaDetalle(widget.venta.numeroComprobante);
+    } catch (_) {
+      ventaDetalle = widget.venta;
     }
+
+    if (!mounted) return;
+    final result = await showModalBottomSheet<_NotaCreditoVentaResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NotaCreditoVentaSheet(venta: ventaDetalle),
+    );
+    if (result == null || !mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) =>
+          const _CargandoDialog(mensaje: 'Emitiendo nota de crédito…'),
+    );
+
+    VentaReadModel? updated;
+    Object? apiError;
+    try {
+      updated = await ref.read(ventaProvider.notifier).emitirNotaCredito(
+            widget.venta.numeroComprobante,
+            codigoTipo: result.codigoTipo,
+            motivo: result.motivo,
+            items: result.items.isEmpty
+                ? null
+                : result.items
+                    .map((i) => NotaCreditoItemInput(
+                          loteProductoId: i.loteProductoId,
+                          cantidad: i.cantidad,
+                          precioNuevo: i.precioNuevo,
+                        ))
+                    .toList(),
+          );
+    } catch (e) {
+      apiError = e;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // cerrar diálogo de carga
+
+    if (apiError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $apiError'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final error = ref.read(ventaProvider).errorMessage;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final url = updated?.notaCredito?.urlPdfTicket ??
+        updated?.notaCredito?.urlPdfA4;
+    if (url != null && url.isNotEmpty && mounted) {
+      await _mostrarImpresionNotaCredito(
+        context,
+        ref,
+        pdfTicketUrl: url,
+        numeroNc: updated!.notaCredito!.numeroComprobante,
+      );
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Nota de crédito emitida')),
+    );
+    Navigator.pop(context, true);
   }
 
   Future<void> _cancelarVenta() async {
-    final confirmed = await showDialog<bool>(
+    final result = await showModalBottomSheet<_ConfirmacionResult>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Cancelar venta'),
-        content: const Text('¿Estás seguro de que deseas cancelar esta venta?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ConfirmacionOperacionSheet(
+        titulo: 'Cancelar venta',
+        descripcion:
+            '¿Estás seguro de que deseas cancelar esta venta? '
+            'Esta acción no se puede deshacer.',
+        botonLabel: 'Sí, cancelar',
+        botonColor: Color(0xFFD32F2F),
+        pedirCodigoTipo: false,
+        pedirMotivo: false,
       ),
     );
-    if (confirmed == true && mounted) {
-      Navigator.pop(context);
+    if (result == null || !result.confirmado || !mounted) return;
+    try {
       await ref
           .read(ventaProvider.notifier)
           .cancelarVenta(widget.venta.numeroComprobante);
+      final error = ref.read(ventaProvider).errorMessage;
+      if (!mounted) return;
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: Colors.red),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Venta cancelada')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _verPdfNotaCredito() async {
+    final url = widget.venta.notaCredito?.urlPdfA4 ??
+        widget.venta.notaCredito?.urlPdfTicket;
+    if (url == null || url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La nota de crédito no tiene PDF disponible'),
+        ),
+      );
+      return;
+    }
+    try {
+      final bytes = await PrintingService(ref.read(dioProvider))
+          .descargarPdf(url);
+      if (!mounted) return;
+      final tempDir = await getTemporaryDirectory();
+      final file = File(
+        '${tempDir.path}/nc_${widget.venta.notaCredito!.numeroComprobante}.pdf',
+      );
+      await file.writeAsBytes(bytes);
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(
+                'Nota de crédito '
+                '${widget.venta.notaCredito!.numeroComprobante}',
+              ),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+            body: PDFView(
+              filePath: file.path,
+              enableSwipe: true,
+              fitPolicy: FitPolicy.WIDTH,
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar PDF: $e')),
+      );
+    }
+  }
+
+  Future<void> _imprimirTicketNotaCredito() async {
+    final url = widget.venta.notaCredito?.urlPdfTicket;
+    if (url == null || url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('La nota de crédito no tiene ticket imprimible'),
+        ),
+      );
+      return;
+    }
+    final config = ref.read(impresoraConfigProvider);
+    if (!config.estaConfigura) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay impresora configurada')),
+      );
+      return;
+    }
+    try {
+      final bytes = await PrintingService(ref.read(dioProvider))
+          .descargarPdf(url);
+      final comandos = await TicketConverter.pdfAEscPos(bytes);
+      final repo = ref.read(impresoraRepositoryProvider);
+      if (config.esUsbCups) {
+        await repo.enviarViaCups(comandos);
+      } else {
+        await repo.enviarAImpresora(config.ip, config.puerto, comandos);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nota de crédito enviada a impresora')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al imprimir: $e')),
+      );
     }
   }
 
@@ -1184,11 +1392,17 @@ class _VentaDetalleSheetState extends ConsumerState<_VentaDetalleSheet> {
     final venta = widget.venta;
     final canDelete = venta.isActive && venta.estadoSunat != 'ACEPTADO' &&
         venta.estadoSunat != 'ANULADO';
-    final canAnular =
-        venta.isActive && venta.estadoSunat == 'ACEPTADO' && _esHoy(venta.fecha);
+    // Factura (01): /anular/ válido mismo día hasta 7 días calendario.
+    // Boleta  (03): /anular/ solo mismo día.
+    final canAnular = venta.isActive &&
+        venta.estadoSunat == 'ACEPTADO' &&
+        (venta.tipoComprobante == '01'
+            ? _diasDesdeEmision(venta.fecha) <= 7
+            : _esHoy(venta.fecha));
+    // /nota-credito/ disponible desde el mismo día, sin límite de fecha.
     final canNotaCredito = venta.isActive &&
         venta.estadoSunat == 'ACEPTADO' &&
-        !_esHoy(venta.fecha);
+        venta.notaCredito == null;
 
     return Container(
       decoration: const BoxDecoration(
@@ -1318,6 +1532,83 @@ class _VentaDetalleSheetState extends ConsumerState<_VentaDetalleSheet> {
                   _DetalleRow('Registrado por', venta.usuarioTienda.nombre),
                 ],
               ),
+              // Sección Nota de Crédito (si fue emitida)
+              if (venta.notaCredito != null) ...[
+                _DetalleSection(
+                  title: 'Nota de Crédito',
+                  rows: [
+                    _DetalleRow(
+                      'Número',
+                      venta.notaCredito!.numeroComprobante,
+                      bold: true,
+                    ),
+                    _DetalleRow(
+                      'Tipo',
+                      venta.notaCredito!.tipoComprobanteDisplay,
+                    ),
+                    if (venta.notaCredito!.motivo.isNotEmpty)
+                      _DetalleRow('Motivo', venta.notaCredito!.motivo),
+                    _DetalleRow(
+                      'Fecha',
+                      DateFormat('dd/MM/yyyy HH:mm').format(
+                        DateTime.parse(venta.notaCredito!.fecha),
+                      ),
+                    ),
+                  ],
+                ),
+                // Ítems de NC para tipos 07 y 09
+                if (venta.notaCredito!.itemsNc.isNotEmpty)
+                  _DetalleSection(
+                    title: venta.notaCredito!.tipoComprobante == '07'
+                        ? 'Productos devueltos'
+                        : 'Ajuste de precio por producto',
+                    rows: venta.notaCredito!.itemsNc.map((item) {
+                      final candidatos = venta.detalle
+                          .where((d) => d.loteProductoId == item.loteProductoId);
+                      final nombre = candidatos.isNotEmpty
+                          ? candidatos.first.productoNombre
+                          : 'Producto #${item.loteProductoId}';
+                      final detalle = item.precioNuevo != null
+                          ? '${item.cantidad} un. · Precio nuevo: S/. ${item.precioNuevo}'
+                          : '${item.cantidad} un.';
+                      return _DetalleRow(nombre, detalle);
+                    }).toList(),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      if ((venta.notaCredito!.urlPdfA4 ?? '').isNotEmpty ||
+                          (venta.notaCredito!.urlPdfTicket ?? '').isNotEmpty)
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.picture_as_pdf_outlined),
+                            label: const Text('Ver PDF'),
+                            onPressed: _verPdfNotaCredito,
+                          ),
+                        ),
+                      if ((venta.notaCredito!.urlPdfTicket ?? '')
+                          .isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.print_outlined),
+                            label: const Text('Imprimir'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2F3A8F),
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: _imprimirTicketNotaCredito,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               // Acciones
               if (canDelete || canAnular || canNotaCredito)
                 Padding(
@@ -1387,99 +1678,169 @@ class _ServicioDetalleSheetState extends ConsumerState<_ServicioDetalleSheet>
 
   bool _esHoy(String fecha) {
     final hoy = DateTime.now();
-    final fechaDt = DateTime.parse(fecha);
+    // `fecha` viene del backend en UTC (ISO 8601 con Z). Hay que
+    // convertirlo a local antes de comparar día/mes/año, si no una
+    // venta de anoche local aparece como "hoy" en UTC y la UI ofrece
+    // "Anular" cuando el backend ya solo acepta "Nota de crédito".
+    final fechaDt = DateTime.parse(fecha).toLocal();
     return hoy.year == fechaDt.year &&
         hoy.month == fechaDt.month &&
         hoy.day == fechaDt.day;
   }
 
+  int _diasDesdeEmision(String fecha) {
+    final hoy = DateTime.now();
+    final fechaDt = DateTime.parse(fecha).toLocal();
+    final hoyNorm = DateTime(hoy.year, hoy.month, hoy.day);
+    final fechaNorm = DateTime(fechaDt.year, fechaDt.month, fechaDt.day);
+    return hoyNorm.difference(fechaNorm).inDays;
+  }
+
   Future<void> _confirmarAnulacion() async {
-    final confirmed = await showDialog<bool>(
+    final result = await showModalBottomSheet<_ConfirmacionResult>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Motivo de anulación'),
-        content: TextField(
-          controller: _motivoController,
-          decoration: const InputDecoration(
-            hintText: 'Ingresa el motivo...',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ConfirmacionOperacionSheet(
+        titulo: 'Anular servicio',
+        descripcion:
+            'El servicio se comunicará a SUNAT como anulado. '
+            'Ingresa el motivo de la anulación.',
+        botonLabel: 'Anular',
+        botonColor: Color(0xFFE67E00),
       ),
     );
-    if (confirmed == true && mounted) {
-      Navigator.pop(context);
+    if (result == null || !result.confirmado || !mounted) return;
+    try {
       await ref.read(servicioProvider.notifier).anularServicio(
             widget.servicio.numeroComprobante,
-            motivo: _motivoController.text,
+            motivo: result.motivo,
           );
+      final error = ref.read(servicioProvider).errorMessage;
+      if (!mounted) return;
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: Colors.red),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Servicio anulado ante SUNAT')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
   Future<void> _emitirNotaCredito() async {
-    final confirmed = await showDialog<bool>(
+    final result = await showModalBottomSheet<_NotaCreditoServicioResult>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Motivo de nota de crédito'),
-        content: TextField(
-          controller: _motivoController,
-          decoration: const InputDecoration(
-            hintText: 'Ingresa el motivo...',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NotaCreditoServicioSheet(servicio: widget.servicio),
     );
-    if (confirmed == true && mounted) {
-      Navigator.pop(context);
-      await ref.read(servicioProvider.notifier).emitirNotaCredito(
+    if (result == null || !mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) =>
+          const _CargandoDialog(mensaje: 'Emitiendo nota de crédito…'),
+    );
+
+    NotaCreditoData? ncData;
+    Object? apiError;
+    try {
+      ncData = await ref
+          .read(servicioProvider.notifier)
+          .emitirNotaCredito(
             widget.servicio.numeroComprobante,
-            motivo: _motivoController.text,
+            codigoTipo: result.codigoTipo,
+            motivo: result.motivo,
+            precioNuevo: result.precioNuevo,
           );
+    } catch (e) {
+      apiError = e;
     }
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // cerrar diálogo de carga
+
+    if (apiError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $apiError'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final error = ref.read(servicioProvider).errorMessage;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    // Preview con botón imprimir. Para servicios la NC NO se persiste
+    // en BD — esta es la única chance de mostrarla / imprimirla.
+    final url = ncData?.pdfTicket ?? ncData?.pdfA4;
+    if (url != null && url.isNotEmpty && ncData != null) {
+      await _mostrarImpresionNotaCredito(
+        context,
+        ref,
+        pdfTicketUrl: url,
+        numeroNc: ncData.numero,
+      );
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Nota de crédito emitida')),
+    );
+    Navigator.pop(context, true);
   }
 
   Future<void> _eliminarServicio() async {
-    final confirmed = await showDialog<bool>(
+    final result = await showModalBottomSheet<_ConfirmacionResult>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar servicio'),
-        content: const Text('¿Estás seguro de que deseas eliminar este servicio?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirmar'),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _ConfirmacionOperacionSheet(
+        titulo: 'Eliminar servicio',
+        descripcion:
+            '¿Estás seguro de que deseas eliminar este servicio? '
+            'Esta acción no se puede deshacer.',
+        botonLabel: 'Sí, eliminar',
+        botonColor: Color(0xFFD32F2F),
+        pedirMotivo: false,
       ),
     );
-    if (confirmed == true && mounted) {
-      Navigator.pop(context);
+    if (result == null || !result.confirmado || !mounted) return;
+    try {
       await ref
           .read(servicioProvider.notifier)
           .eliminarServicio(widget.servicio.numeroComprobante);
+      final error = ref.read(servicioProvider).errorMessage;
+      if (!mounted) return;
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: Colors.red),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Servicio eliminado')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -1489,12 +1850,16 @@ class _ServicioDetalleSheetState extends ConsumerState<_ServicioDetalleSheet>
     final canEliminar = servicio.isActive &&
         servicio.estadoSunat != 'ACEPTADO' &&
         servicio.estadoSunat != 'ANULADO';
+    // Factura (01): /anular/ válido mismo día hasta 7 días calendario.
+    // Boleta  (03): /anular/ solo mismo día.
     final canAnular = servicio.isActive &&
         servicio.estadoSunat == 'ACEPTADO' &&
-        _esHoy(servicio.fecha);
+        (servicio.tipoComprobante == '01'
+            ? _diasDesdeEmision(servicio.fecha) <= 7
+            : _esHoy(servicio.fecha));
+    // /nota-credito/ disponible desde el mismo día, sin límite de fecha.
     final canNotaCredito = servicio.isActive &&
-        servicio.estadoSunat == 'ACEPTADO' &&
-        !_esHoy(servicio.fecha);
+        servicio.estadoSunat == 'ACEPTADO';
 
     return Container(
       decoration: const BoxDecoration(
@@ -1794,6 +2159,1271 @@ class _ActionButton extends StatelessWidget {
           minimumSize: const Size.fromHeight(44),
         ),
         onPressed: onTap,
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Nota de crédito para ventas — nueva sheet con selección de tipo e ítems
+// ────────────────────────────────────────────────────────────────────
+
+class _NotaCreditoVentaResult {
+  final String codigoTipo;
+  final String motivo;
+  final List<_NCItemInput> items;
+  const _NotaCreditoVentaResult({
+    required this.codigoTipo,
+    required this.motivo,
+    this.items = const [],
+  });
+}
+
+class _NCItemInput {
+  final int loteProductoId;
+  final String cantidad;
+  final String? precioNuevo;
+  const _NCItemInput({
+    required this.loteProductoId,
+    required this.cantidad,
+    this.precioNuevo,
+  });
+}
+
+class _ItemFormState {
+  final VentaLineaModel linea;
+  bool seleccionado;
+  final TextEditingController cantidadCtrl;
+  final TextEditingController precioNuevoCtrl;
+
+  _ItemFormState({required this.linea})
+      : seleccionado = false,
+        cantidadCtrl = TextEditingController(text: linea.cantidad),
+        precioNuevoCtrl = TextEditingController();
+
+  void dispose() {
+    cantidadCtrl.dispose();
+    precioNuevoCtrl.dispose();
+  }
+}
+
+class _NotaCreditoVentaSheet extends StatefulWidget {
+  final VentaReadModel venta;
+  const _NotaCreditoVentaSheet({required this.venta});
+
+  @override
+  State<_NotaCreditoVentaSheet> createState() => _NotaCreditoVentaSheetState();
+}
+
+class _NotaCreditoVentaSheetState extends State<_NotaCreditoVentaSheet> {
+  String _codigoTipo = '01';
+  final _motivoCtrl = TextEditingController();
+  late final List<_ItemFormState> _itemForms;
+  String? _errorMsg;
+
+  static const _tiposNC = [
+    ('01', 'Anulación total', 'Cancela toda la venta y revierte el stock completo'),
+    ('06', 'Devolución total', 'El cliente devuelve todos los productos'),
+    ('07', 'Devolución por ítem', 'El cliente devuelve productos específicos o cantidades parciales'),
+    ('09', 'Ajuste de precio', 'Se acordó un precio menor; no se devuelven productos'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _itemForms = widget.venta.detalle
+        .where((d) => d.loteProductoId != null)
+        .map((d) => _ItemFormState(linea: d))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    _motivoCtrl.dispose();
+    for (final f in _itemForms) {
+      f.dispose();
+    }
+    super.dispose();
+  }
+
+  bool get _requiereItems => _codigoTipo == '07' || _codigoTipo == '09';
+
+  bool _validar() {
+    if (_requiereItems) {
+      final sel = _itemForms.where((f) => f.seleccionado).toList();
+      if (sel.isEmpty) {
+        setState(() => _errorMsg = 'Selecciona al menos un producto');
+        return false;
+      }
+      for (final f in sel) {
+        if (_codigoTipo == '07') {
+          final cant = double.tryParse(f.cantidadCtrl.text.trim());
+          final orig = double.tryParse(f.linea.cantidad);
+          if (cant == null || cant <= 0) {
+            setState(() => _errorMsg = 'Cantidad inválida para ${f.linea.productoNombre}');
+            return false;
+          }
+          if (orig != null && cant > orig) {
+            setState(() => _errorMsg = 'La cantidad no puede superar ${f.linea.cantidad} para ${f.linea.productoNombre}');
+            return false;
+          }
+        } else {
+          final precio = double.tryParse(f.precioNuevoCtrl.text.trim());
+          final orig = double.tryParse(f.linea.precio);
+          if (precio == null || precio <= 0) {
+            setState(() => _errorMsg = 'Precio inválido para ${f.linea.productoNombre}');
+            return false;
+          }
+          if (orig != null && precio >= orig) {
+            setState(() => _errorMsg = 'El precio nuevo debe ser menor a S/. ${f.linea.precio} para ${f.linea.productoNombre}');
+            return false;
+          }
+        }
+      }
+    }
+    setState(() => _errorMsg = null);
+    return true;
+  }
+
+  void _confirmar() {
+    if (!_validar()) return;
+    final items = _requiereItems
+        ? _itemForms
+            .where((f) => f.seleccionado)
+            .map((f) => _NCItemInput(
+                  loteProductoId: f.linea.loteProductoId!,
+                  cantidad: f.cantidadCtrl.text.trim(),
+                  precioNuevo: _codigoTipo == '09'
+                      ? f.precioNuevoCtrl.text.trim()
+                      : null,
+                ))
+            .toList()
+        : <_NCItemInput>[];
+    Navigator.pop(
+      context,
+      _NotaCreditoVentaResult(
+        codigoTipo: _codigoTipo,
+        motivo: _motivoCtrl.text.trim(),
+        items: items,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 16),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Nota de crédito',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            widget.venta.numeroComprobante,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              // Tipo section label
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Text(
+                  '¿Qué tipo de nota de crédito necesitas?',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ),
+              // Tipo tiles
+              for (final tipo in _tiposNC)
+                _buildTipoTile(tipo.$1, tipo.$2, tipo.$3),
+              // Motivo
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: TextField(
+                  controller: _motivoCtrl,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'Motivo',
+                    hintText: 'Opcional — describe brevemente la razón',
+                    filled: true,
+                    fillColor: const Color(0xFFF8F9FB),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey[200]!),
+                    ),
+                  ),
+                ),
+              ),
+              // Items section (solo tipos 07/09)
+              if (_requiereItems) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  child: Text(
+                    _codigoTipo == '07'
+                        ? 'Productos a devolver'
+                        : 'Productos con ajuste de precio',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+                if (_itemForms.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange[200]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber_outlined,
+                              size: 18, color: Colors.orange[700]),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Los productos de esta venta no tienen ID de lote disponible para devolución por ítem.',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  for (final form in _itemForms) _buildItemForm(form),
+              ],
+              // Error
+              if (_errorMsg != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline,
+                            size: 16, color: Colors.red[700]),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _errorMsg!,
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.red[700]),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              // Botones
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(46),
+                        ),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2F3A8F),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(46),
+                        ),
+                        onPressed: _confirmar,
+                        child: const Text('Emitir NC'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTipoTile(String codigo, String titulo, String descripcion) {
+    final selected = _codigoTipo == codigo;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _codigoTipo = codigo;
+        _errorMsg = null;
+      }),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF2F3A8F).withValues(alpha: 0.06)
+              : const Color(0xFFF8F9FB),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? const Color(0xFF2F3A8F) : Colors.grey[200]!,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected
+                      ? const Color(0xFF2F3A8F)
+                      : Colors.grey[400]!,
+                  width: 2,
+                ),
+              ),
+              child: selected
+                  ? Center(
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF2F3A8F),
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$codigo — $titulo',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: selected
+                          ? const Color(0xFF2F3A8F)
+                          : const Color(0xFF1F1F1F),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    descripcion,
+                    style:
+                        TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemForm(_ItemFormState form) {
+    final selected = form.seleccionado;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF2F3A8F).withValues(alpha: 0.04)
+              : const Color(0xFFF8F9FB),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF2F3A8F).withValues(alpha: 0.4)
+                : Colors.grey[200]!,
+          ),
+        ),
+        child: Column(
+          children: [
+            InkWell(
+              borderRadius: selected
+                  ? const BorderRadius.vertical(top: Radius.circular(10))
+                  : BorderRadius.circular(10),
+              onTap: () => setState(() {
+                form.seleccionado = !form.seleccionado;
+                _errorMsg = null;
+              }),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(
+                      selected
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank,
+                      color: selected
+                          ? const Color(0xFF2F3A8F)
+                          : Colors.grey[400],
+                      size: 22,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            form.linea.productoNombre,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '${form.linea.cantidad} ${form.linea.unidadMedida} · S/. ${form.linea.precio}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (selected) ...[
+              Divider(height: 1, color: Colors.grey[200]),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: _codigoTipo == '07'
+                    ? TextField(
+                        controller: form.cantidadCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: InputDecoration(
+                          labelText: 'Cantidad a devolver',
+                          hintText:
+                              'Máx: ${form.linea.cantidad} ${form.linea.unidadMedida}',
+                          suffixText: form.linea.unidadMedida,
+                          filled: true,
+                          fillColor: Colors.white,
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide:
+                                BorderSide(color: Colors.grey[300]!),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                        ),
+                      )
+                    : TextField(
+                        controller: form.precioNuevoCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: InputDecoration(
+                          labelText: 'Precio nuevo',
+                          hintText:
+                              'Debe ser menor a S/. ${form.linea.precio}',
+                          prefixText: 'S/. ',
+                          filled: true,
+                          fillColor: Colors.white,
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide:
+                                BorderSide(color: Colors.grey[300]!),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                        ),
+                      ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Preview e impresión de la nota de crédito recién emitida.
+// Reusable para ventas y servicios — el patrón sigue
+// `venta_comprobante_page._mostrarPreviewPdf`.
+// ────────────────────────────────────────────────────────────────────
+
+Future<void> _mostrarImpresionNotaCredito(
+  BuildContext context,
+  WidgetRef ref, {
+  required String pdfTicketUrl,
+  required String numeroNc,
+}) async {
+  Uint8List bytes;
+  try {
+    bytes = await PrintingService(ref.read(dioProvider))
+        .descargarPdf(pdfTicketUrl);
+  } catch (e) {
+    if (!context.mounted) return;
+    final mensaje = e.toString().toLowerCase();
+    final esProblemaRed = mensaje.contains('host lookup') ||
+        mensaje.contains('socketexception') ||
+        mensaje.contains('failed to connect') ||
+        mensaje.contains('connection error');
+    if (esProblemaRed) {
+      final reintentar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Sin acceso a SUNAT'),
+          content: Text(
+            'La nota de crédito $numeroNc fue emitida correctamente, '
+            'pero esta red no puede descargar el PDF desde SUNAT. '
+            'Conéctate a una red con acceso a internet estándar y '
+            'reinténtalo.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cerrar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+      if (reintentar == true && context.mounted) {
+        await _mostrarImpresionNotaCredito(
+          context,
+          ref,
+          pdfTicketUrl: pdfTicketUrl,
+          numeroNc: numeroNc,
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo descargar el PDF: $e')),
+      );
+    }
+    return;
+  }
+
+  final tempDir = await getTemporaryDirectory();
+  final tempFile = File(
+    '${tempDir.path}/nc_${numeroNc.replaceAll(RegExp('[^A-Za-z0-9]'), '_')}.pdf',
+  );
+  await tempFile.writeAsBytes(bytes);
+
+  if (!context.mounted) return;
+
+  bool imprimiendo = false;
+
+  await showDialog(
+    context: context,
+    builder: (dialogCtx) => StatefulBuilder(
+      builder: (ctx, setLocal) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text('Nota de crédito $numeroNc'),
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ),
+          body: PDFView(
+            filePath: tempFile.path,
+            enableSwipe: true,
+            fitPolicy: FitPolicy.WIDTH,
+            onError: (e) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(content: Text('Error al cargar PDF: $e')),
+              );
+            },
+          ),
+          // Consumer hace que el botón sea reactivo al estado real de la
+          // impresora. Esto evita que quede deshabilitado cuando el provider
+          // todavía no había cargado la config de SharedPreferences.
+          bottomNavigationBar: Consumer(
+            builder: (_, cRef, child) {
+              final config = cRef.watch(impresoraConfigProvider);
+              final puedeImprimir = config.estaConfigura;
+              return Padding(
+                padding: const EdgeInsets.all(12),
+                child: ElevatedButton.icon(
+                  icon: imprimiendo
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.print_outlined),
+                  label: Text(
+                    puedeImprimir
+                        ? (imprimiendo ? 'Imprimiendo…' : 'Imprimir ahora')
+                        : 'Sin impresora configurada',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: puedeImprimir
+                        ? const Color(0xFF2F3A8F)
+                        : Colors.grey[400],
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  onPressed: !puedeImprimir || imprimiendo
+                      ? null
+                      : () async {
+                          setLocal(() => imprimiendo = true);
+                          try {
+                            final comandos =
+                                await TicketConverter.pdfAEscPos(bytes);
+                            final repo = cRef.read(impresoraRepositoryProvider);
+                            if (config.esUsbCups) {
+                              await repo.enviarViaCups(comandos);
+                            } else {
+                              await repo.enviarAImpresora(
+                                config.ip,
+                                config.puerto,
+                                comandos,
+                              );
+                            }
+                            if (!ctx.mounted) return;
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(
+                                content: Text('Nota de crédito enviada'),
+                              ),
+                            );
+                            Navigator.pop(ctx);
+                          } catch (e) {
+                            if (!ctx.mounted) return;
+                            setLocal(() => imprimiendo = false);
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(
+                                content: Text('Error al imprimir: $e'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    ),
+  );
+
+  try {
+    await tempFile.delete();
+  } catch (_) {}
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Nota de crédito — Servicios (tipos 01 y 09)
+// ────────────────────────────────────────────────────────────────────
+
+class _NotaCreditoServicioResult {
+  final String codigoTipo;
+  final String motivo;
+  final String? precioNuevo;
+
+  const _NotaCreditoServicioResult({
+    required this.codigoTipo,
+    required this.motivo,
+    this.precioNuevo,
+  });
+}
+
+class _NotaCreditoServicioSheet extends StatefulWidget {
+  final ServicioReadModel servicio;
+  const _NotaCreditoServicioSheet({required this.servicio});
+
+  @override
+  State<_NotaCreditoServicioSheet> createState() =>
+      _NotaCreditoServicioSheetState();
+}
+
+class _NotaCreditoServicioSheetState
+    extends State<_NotaCreditoServicioSheet> {
+  static const _tiposNC = [
+    ('01', 'Anulación total', 'Revierte la operación completa ante SUNAT.'),
+    (
+      '09',
+      'Disminución en valor',
+      'Ajusta el total del servicio a un precio menor acordado.'
+    ),
+  ];
+
+  String _codigoTipo = '01';
+  final _motivoCtrl = TextEditingController();
+  final _precioNuevoCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _motivoCtrl.dispose();
+    _precioNuevoCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get _requierePrecioNuevo => _codigoTipo == '09';
+
+  String? _validar() {
+    if (_motivoCtrl.text.trim().isEmpty) return 'El motivo es requerido.';
+    if (_requierePrecioNuevo) {
+      final raw = _precioNuevoCtrl.text.trim();
+      if (raw.isEmpty) return 'Ingresa el nuevo total del servicio.';
+      final valor = double.tryParse(raw);
+      if (valor == null || valor <= 0) {
+        return 'Ingresa un monto válido mayor a 0.';
+      }
+      if (valor >= widget.servicio.total) {
+        return 'El precio nuevo (S/ $raw) debe ser menor al total actual '
+            '(S/ ${widget.servicio.total.toStringAsFixed(2)}).';
+      }
+    }
+    return null;
+  }
+
+  void _emitir() {
+    final error = _validar();
+    if (error != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error), backgroundColor: Colors.red));
+      return;
+    }
+    Navigator.pop(
+      context,
+      _NotaCreditoServicioResult(
+        codigoTipo: _codigoTipo,
+        motivo: _motivoCtrl.text.trim(),
+        precioNuevo: _requierePrecioNuevo ? _precioNuevoCtrl.text.trim() : null,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Nota de Crédito',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.servicio.numeroComprobante,
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Content
+            Expanded(
+              child: ListView(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.all(20),
+                children: [
+                  const Text(
+                    'Tipo de nota de crédito',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 10),
+                  for (final (codigo, nombre, desc) in _tiposNC)
+                    _buildTipoTile(codigo, nombre, desc),
+                  const SizedBox(height: 16),
+                  // Motivo
+                  const Text(
+                    'Motivo',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _motivoCtrl,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: 'Describe el motivo de la nota de crédito',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  // Campo precio_nuevo solo para tipo 09
+                  if (_requierePrecioNuevo) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Nuevo total del servicio',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 14),
+                        ),
+                        Text(
+                          'Total actual: S/ ${widget.servicio.total.toStringAsFixed(2)}',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _precioNuevoCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: InputDecoration(
+                        hintText: 'Ej: 500.00',
+                        prefixText: 'S/ ',
+                        helperText:
+                            'Debe ser menor al total actual. El crédito = total actual − nuevo total.',
+                        helperMaxLines: 2,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _emitir,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2F3A8F),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text(
+                        'Emitir nota de crédito',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTipoTile(String codigo, String nombre, String descripcion) {
+    final selected = _codigoTipo == codigo;
+    return GestureDetector(
+      onTap: () => setState(() => _codigoTipo = codigo),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: selected ? const Color(0xFF2F3A8F) : Colors.grey[300]!,
+            width: selected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(10),
+          color: selected
+              ? const Color(0xFF2F3A8F).withValues(alpha: 0.05)
+              : Colors.transparent,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 2),
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected
+                      ? const Color(0xFF2F3A8F)
+                      : Colors.grey[400]!,
+                  width: 2,
+                ),
+              ),
+              child: selected
+                  ? Center(
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF2F3A8F),
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(nombre,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: selected
+                            ? const Color(0xFF2F3A8F)
+                            : Colors.black87,
+                      )),
+                  const SizedBox(height: 2),
+                  Text(descripcion,
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey[600])),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Bottom sheet reutilizable para confirmar anulación / nota crédito /
+// cancelación con estilo consistente (reemplazo de AlertDialog).
+// ────────────────────────────────────────────────────────────────────
+
+class _ConfirmacionResult {
+  final bool confirmado;
+  final String motivo;
+  final String codigoTipo;
+  const _ConfirmacionResult({
+    required this.confirmado,
+    this.motivo = '',
+    this.codigoTipo = '01',
+  });
+}
+
+class _ConfirmacionOperacionSheet extends StatefulWidget {
+  final String titulo;
+  final String descripcion;
+  final String botonLabel;
+  final Color botonColor;
+  final bool pedirCodigoTipo;
+  final bool pedirMotivo;
+
+  const _ConfirmacionOperacionSheet({
+    required this.titulo,
+    required this.descripcion,
+    required this.botonLabel,
+    required this.botonColor,
+    this.pedirCodigoTipo = false,
+    this.pedirMotivo = true,
+  });
+
+  @override
+  State<_ConfirmacionOperacionSheet> createState() =>
+      _ConfirmacionOperacionSheetState();
+}
+
+class _ConfirmacionOperacionSheetState
+    extends State<_ConfirmacionOperacionSheet> {
+  late TextEditingController _motivoController;
+  String _codigoTipo = '01';
+
+  static const _tiposNotaCredito = <String, String>{
+    '01': '01 · Anulación de la operación',
+    '06': '06 · Devolución total',
+    '07': '07 · Devolución por ítem',
+    '09': '09 · Disminución del valor',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _motivoController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _motivoController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 16),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.titulo,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Text(
+                  widget.descripcion,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              if (widget.pedirCodigoTipo)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _codigoTipo,
+                    decoration: InputDecoration(
+                      labelText: 'Tipo de nota de crédito',
+                      filled: true,
+                      fillColor: const Color(0xFFF8F9FB),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
+                      ),
+                    ),
+                    items: _tiposNotaCredito.entries
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(e.value),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _codigoTipo = v);
+                    },
+                  ),
+                ),
+              if (widget.pedirMotivo)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  child: TextField(
+                    controller: _motivoController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: 'Motivo',
+                      hintText: 'Describe brevemente la razón…',
+                      filled: true,
+                      fillColor: const Color(0xFFF8F9FB),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
+                      ),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(
+                          context,
+                          const _ConfirmacionResult(confirmado: false),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(46),
+                        ),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: widget.botonColor,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(46),
+                        ),
+                        onPressed: () => Navigator.pop(
+                          context,
+                          _ConfirmacionResult(
+                            confirmado: true,
+                            motivo: _motivoController.text.trim(),
+                            codigoTipo: _codigoTipo,
+                          ),
+                        ),
+                        child: Text(widget.botonLabel),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Diálogo de carga bloqueante para operaciones contra el servidor.
+// ────────────────────────────────────────────────────────────────────
+
+class _CargandoDialog extends StatelessWidget {
+  final String mensaje;
+  const _CargandoDialog({this.mensaje = 'Procesando…'});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(
+              strokeWidth: 3,
+              color: Color(0xFF2F3A8F),
+            ),
+            const SizedBox(width: 20),
+            Flexible(
+              child: Text(
+                mensaje,
+                style: const TextStyle(fontSize: 15),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

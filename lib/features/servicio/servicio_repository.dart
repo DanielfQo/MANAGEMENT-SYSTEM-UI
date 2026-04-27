@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:management_system_ui/core/common_libs.dart';
+import 'package:management_system_ui/features/servicio/models/nota_credito_data.dart';
 import 'package:management_system_ui/features/servicio/models/servicio_create_model.dart';
 import 'package:management_system_ui/features/servicio/models/servicio_read_model.dart';
 
@@ -93,12 +94,23 @@ class ServicioRepository {
         nextCursor = null;
       }
 
-      return ServiciosPageResult(
-        items: results
-            .map((e) => ServicioReadModel.fromJson(e))
-            .toList(),
-        nextCursor: nextCursor,
-      );
+      try {
+        return ServiciosPageResult(
+          items: results
+              .map((e) => ServicioReadModel.fromJson(e))
+              .toList(),
+          nextCursor: nextCursor,
+        );
+      } on TypeError catch (e) {
+        final shape = results.isEmpty
+            ? '<lista vacía>'
+            : results.first.runtimeType.toString();
+        throw Exception(
+          'Error parseando lista de servicios '
+          '(primer item es $shape, esperado Map). '
+          'Detalle: $e',
+        );
+      }
     } on DioException catch (e) {
       final errorMsg =
           _extractErrorMessage(e, 'Error al obtener servicios');
@@ -150,16 +162,40 @@ class ServicioRepository {
   }
 
   /// POST /services/servicio/{numero_comprobante}/nota-credito/ - Nota de credito
-  Future<ServicioReadModel> emitirNotaCredito(
+  ///
+  /// El backend devuelve el servicio actualizado y, además, un dict
+  /// transitorio `nota_credito` con `numero`, `pdf_ticket`, `pdf_a4`,
+  /// etc. — esos datos NO se persisten en BD, así que esta es la única
+  /// chance de capturarlos para mostrar/imprimir el comprobante.
+  /// POST /services/servicio/{numero_comprobante}/nota-credito/
+  ///
+  /// Tipos soportados:
+  ///   01 — Anulación total. Solo requiere motivo.
+  ///   09 — Disminución en valor. Requiere precio_nuevo (nuevo total del servicio).
+  Future<({ServicioReadModel servicio, NotaCreditoData? notaCredito})>
+      emitirNotaCredito(
     String numeroComprobante, {
+    String codigoTipo = '01',
     required String motivo,
+    String? precioNuevo,
   }) async {
     try {
+      final body = <String, dynamic>{'codigo_tipo': codigoTipo};
+      if (motivo.isNotEmpty) body['motivo'] = motivo;
+      if (precioNuevo != null && precioNuevo.isNotEmpty) {
+        body['precio_nuevo'] = precioNuevo;
+      }
       final response = await _dio.post(
         'services/servicio/$numeroComprobante/nota-credito/',
-        data: {'motivo': motivo},
+        data: body,
       );
-      return ServicioReadModel.fromJson(response.data);
+      final servicio = ServicioReadModel.fromJson(response.data);
+      final ncMap = response.data['nota_credito'] as Map<String, dynamic>?;
+      return (
+        servicio: servicio,
+        notaCredito:
+            ncMap != null ? NotaCreditoData.fromJson(ncMap) : null,
+      );
     } on DioException catch (e) {
       final errorMsg =
           _extractErrorMessage(e, 'Error al emitir nota de crédito');

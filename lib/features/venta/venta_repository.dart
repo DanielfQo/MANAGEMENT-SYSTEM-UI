@@ -78,12 +78,23 @@ class VentaRepository {
         nextCursor = null;
       }
 
-      return VentasPageResult(
-        items: results
-            .map((e) => VentaReadModel.fromJson(e))
-            .toList(),
-        nextCursor: nextCursor,
-      );
+      try {
+        return VentasPageResult(
+          items: results
+              .map((e) => VentaReadModel.fromJson(e))
+              .toList(),
+          nextCursor: nextCursor,
+        );
+      } on TypeError catch (e) {
+        final shape = results.isEmpty
+            ? '<lista vacía>'
+            : results.first.runtimeType.toString();
+        throw Exception(
+          'Error parseando lista de ventas '
+          '(primer item es $shape, esperado Map). '
+          'Detalle: $e',
+        );
+      }
     } on DioException catch (e) {
       final errorMsg =
           _extractErrorMessage(e, 'Error al obtener ventas');
@@ -115,18 +126,15 @@ class VentaRepository {
   }
 
   /// POST /ventas/{numero_comprobante}/anular/ - Anular venta SUNAT aceptada (mismo día)
+  /// Solo acepta motivo (opcional). No enviar codigo_tipo — ese campo es exclusivo de /nota-credito/.
   Future<VentaReadModel> anularVenta(
     String numeroComprobante, {
-    required String codigoTipo,
-    required String motivo,
+    String motivo = '',
   }) async {
     try {
       final response = await _dio.post(
         'sales/ventas/$numeroComprobante/anular/',
-        data: {
-          'codigo_tipo': codigoTipo,
-          'motivo': motivo,
-        },
+        data: motivo.isNotEmpty ? {'motivo': motivo} : {},
       );
       return VentaReadModel.fromJson(response.data);
     } on DioException catch (e) {
@@ -136,10 +144,26 @@ class VentaRepository {
   }
 
   /// POST /ventas/{numero_comprobante}/nota-credito/ - Nota de crédito para ventas SUNAT de días anteriores
-  Future<VentaReadModel> emitirNotaCredito(String numeroComprobante) async {
+  ///
+  /// Tipos:
+  ///   01/06 — solo codigo_tipo + motivo (opcional). Venta queda inactiva.
+  ///   07    — requiere items con lote_producto_id y cantidad. Venta sigue activa.
+  ///   09    — requiere items con lote_producto_id, cantidad y precio_nuevo. Venta sigue activa.
+  Future<VentaReadModel> emitirNotaCredito(
+    String numeroComprobante, {
+    String codigoTipo = '01',
+    String motivo = '',
+    List<NotaCreditoItemInput>? items,
+  }) async {
     try {
+      final body = <String, dynamic>{'codigo_tipo': codigoTipo};
+      if (motivo.isNotEmpty) body['motivo'] = motivo;
+      if (items != null && items.isNotEmpty) {
+        body['items'] = items.map((i) => i.toJson()).toList();
+      }
       final response = await _dio.post(
         'sales/ventas/$numeroComprobante/nota-credito/',
+        data: body,
       );
       return VentaReadModel.fromJson(response.data);
     } on DioException catch (e) {
@@ -405,4 +429,23 @@ class VentasPageResult {
     required this.items,
     required this.nextCursor,
   });
+}
+
+/// Ítem de nota de crédito para tipos 07 (devolución por ítem) y 09 (disminución en valor)
+class NotaCreditoItemInput {
+  final int loteProductoId;
+  final String cantidad;
+  final String? precioNuevo;
+
+  const NotaCreditoItemInput({
+    required this.loteProductoId,
+    required this.cantidad,
+    this.precioNuevo,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'lote_producto_id': loteProductoId,
+        'cantidad': cantidad,
+        if (precioNuevo != null) 'precio_nuevo': precioNuevo,
+      };
 }
